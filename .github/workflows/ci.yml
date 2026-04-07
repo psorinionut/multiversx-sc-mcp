@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify tools register
+        run: |
+          echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          tools = data['result']['tools']
+          print(f'{len(tools)} tools registered')
+          assert len(tools) >= 26, f'Expected 26+ tools, got {len(tools)}'
+          print('All tools OK')
+          "

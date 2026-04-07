@@ -1,0 +1,55 @@
+{
+  "name": "multiversx-sc-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for MultiversX blockchain and smart contract interaction — 26 tools for querying, deploying, verifying contracts, managing wallets, converting data, and more. ABI-aware with auto-discovery.",
+  "main": "dist/index.js",
+  "bin": {
+    "multiversx-sc-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "start": "node dist/index.js",
+    "dev": "npx tsx src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psorinionut/multiversx-sc-mcp.git"
+  },
+  "homepage": "https://github.com/psorinionut/multiversx-sc-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/psorinionut/multiversx-sc-mcp/issues"
+  },
+  "keywords": [
+    "multiversx",
+    "mcp",
+    "model-context-protocol",
+    "smart-contract",
+    "blockchain",
+    "ai",
+    "claude",
+    "elrond",
+    "esdt",
+    "defi",
+    "web3"
+  ],
+  "author": "MultiversX Community",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@multiversx/sdk-core": "^15.4.0",
+    "@multiversx/sdk-network-providers": "^2.9.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "tsx": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
