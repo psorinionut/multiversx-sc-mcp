@@ -16,7 +16,7 @@ Use `mvx_account` with address `{{address}}` on `{{network}}` to gather:
 Record all properties. Flag anything unusual (e.g., large EGLD balance with no clear purpose, upgradeable without owner verification).
 
 ### 1.2 ABI Discovery
-Use `mvx_abi` with address `{{address}}` on `{{network}}` to retrieve the full contract interface.
+Use `mvx_sc_abi` with address `{{address}}` on `{{network}}` to retrieve the full contract interface.
 
 From the ABI, extract and categorize:
 - **Views** (readonly endpoints): These will be queried exhaustively.
@@ -33,22 +33,22 @@ Build a complete endpoint inventory table:
 |----------|-----------|--------|---------|------------|-------------|
 
 ### 1.3 Token Discovery
-From the ABI, identify view endpoints that return token identifiers (e.g., `getTokenId`, `getLpTokenIdentifier`, `getRewardTokenId`). Query each one using `mvx_query` to discover all tokens managed by the contract.
+From the ABI, identify view endpoints that return token identifiers (e.g., `getTokenId`, `getLpTokenIdentifier`, `getRewardTokenId`). Query each one using `mvx_sc_query` to discover all tokens managed by the contract.
 
 ## Phase 2: State Interrogation
 
 ### 2.1 Query All Views
 For **every** view endpoint discovered in Phase 1.2:
-- Call `mvx_query` with address `{{address}}`, the function name, and appropriate arguments on `{{network}}`.
+- Call `mvx_sc_query` with address `{{address}}`, the function name, and appropriate arguments on `{{network}}`.
 - If the view requires arguments you do not know, skip it and note it as "requires input".
 - Record every result in a structured table.
 - Flag unexpected values: zero balances where non-zero expected, empty collections, max uint values.
 
 ### 2.2 Storage Key Enumeration
-Use `mvx_storage_keys` with address `{{address}}` on `{{network}}` to list all storage keys.
+Use `mvx_sc_storage_keys` with address `{{address}}` on `{{network}}` to list all storage keys.
 
 Then for each important or interesting key:
-- Use `mvx_storage` to read the raw value.
+- Use `mvx_sc_storage` to read the raw value.
 - Cross-reference with view results -- storage values should be consistent with what views report.
 - Look for storage keys that no view exposes (hidden state).
 
@@ -63,7 +63,7 @@ Verify internal consistency:
 
 ### 3.1 Public Endpoint Simulation
 For each **public, non-owner** mutable endpoint:
-- Use `mvx_query` (dry-run) or describe expected behavior based on ABI analysis.
+- Use `mvx_sc_simulate` (dry-run) or describe expected behavior based on ABI analysis.
 - Document what each endpoint does based on its name, parameters, and the state you have observed.
 - Identify endpoints that could be called by anyone and assess risk:
   - Can a user drain funds?
@@ -142,10 +142,10 @@ Overall Health: [score /10]
 
 ### Checklist
 - [ ] Account properties inspected (mvx_account)
-- [ ] Full ABI retrieved and analyzed (mvx_abi)
-- [ ] All views queried (mvx_query)
-- [ ] Storage keys enumerated (mvx_storage_keys)
-- [ ] Key storage values read (mvx_storage)
+- [ ] Full ABI retrieved and analyzed (mvx_sc_abi)
+- [ ] All views queried (mvx_sc_query)
+- [ ] Storage keys enumerated (mvx_sc_storage_keys)
+- [ ] Key storage values read (mvx_sc_storage)
 - [ ] State consistency verified
 - [ ] Public endpoints analyzed for risk
 - [ ] Edge cases considered

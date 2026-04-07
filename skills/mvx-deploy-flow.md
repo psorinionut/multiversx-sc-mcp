@@ -47,7 +47,7 @@ Estimate deployment gas based on WASM size:
 ## Deployment
 
 ### Step 5: Deploy the Contract
-Use `mvx_deploy` with:
+Use `mvx_sc_deploy` with:
 - `wasmPath`: `{{wasmPath}}`
 - `network`: `{{network}}`
 - Constructor arguments as provided by the user.
@@ -76,14 +76,14 @@ After the deploy transaction completes:
 ## Post-Deployment Validation
 
 ### Step 7: ABI Verification
-Use `mvx_abi` with the new contract address on `{{network}}` to:
+Use `mvx_sc_abi` with the new contract address on `{{network}}` to:
 - Confirm the on-chain ABI matches the local ABI at `{{abiPath}}`.
 - Verify all expected endpoints are present.
 - Verify constructor parameters were recorded correctly.
 
 ### Step 8: Test Views
 For each **view** endpoint in the ABI:
-- Use `mvx_query` to call it on `{{network}}`.
+- Use `mvx_sc_query` to call it on `{{network}}`.
 - Verify initial state is correct:
   - Configuration values match what was passed to the constructor.
   - Counters start at expected initial values (0 or 1).
@@ -97,15 +97,15 @@ Document results:
 | ... | ... | ... | OK / Mismatch |
 
 ### Step 9: Storage Verification
-Use `mvx_storage_keys` on the new contract address on `{{network}}`:
+Use `mvx_sc_storage_keys` on the new contract address on `{{network}}`:
 - Confirm storage keys were initialized by the constructor.
-- Use `mvx_storage` to spot-check key values.
+- Use `mvx_sc_storage` to spot-check key values.
 - Verify no unexpected storage keys exist.
 
 ### Step 10: Explorer Verification
-Use `mvx_verify` to submit the contract source code for verification on the `{{network}}` explorer:
-- Provide the source code directory, contract name, and any required build parameters.
-- After submission, use `mvx_verify_status` to poll until verification completes.
+Use `mvx_sc_verify` to submit the contract for verification on the `{{network}}` explorer:
+- Provide the `packagedSrc` path (the `.source.json` file from a reproducible build, e.g., `output-docker/contract/contract-0.0.0.source.json`) and the `dockerImage` tag used for the build (e.g., `multiversx/sdk-rust-contract-builder:v11.0.0`).
+- After submission, use `mvx_sc_verify_status` to poll until verification completes.
 - Confirm the contract shows as "verified" on the explorer.
 
 If verification fails:

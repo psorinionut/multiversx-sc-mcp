@@ -532,7 +532,7 @@ server.tool(
 // ─── mvx_verify_status ──────────────────────────────────────────────────
 server.tool(
   "mvx_sc_verify_status",
-  "Check the status of a contract verification task. Use the taskId returned by mvx_verify.",
+  "Check the status of a contract verification task. Use the taskId returned by mvx_sc_verify.",
   {
     taskId: z.string().describe("Task ID from mvx_verify response"),
     address: z

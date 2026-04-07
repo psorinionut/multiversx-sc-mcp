@@ -23,10 +23,10 @@ Extract and record:
 
 ### 1.2 Decode the Data Field
 The transaction data field contains the function call. Parse it:
-- First component (before `@`): function name (hex-encoded or plain text)
+- First component (before `@`): function name (plain text ASCII)
 - Subsequent `@`-separated components: arguments (hex-encoded)
 
-Use `mvx_decode` if needed to decode complex argument types (structs, enums, nested types).
+Use `mvx_sc_decode` if needed to decode complex argument types (structs, enums, nested types).
 
 For each argument, determine:
 | Position | Hex Value | Decoded Value | Likely Type |
@@ -62,8 +62,8 @@ Build a call trace showing the execution flow:
 
 ### 2.2 Decode Return Values
 If the transaction succeeded and returned data:
-- Use `mvx_decode` with the ABI type information to decode return values.
-- If you have the contract ABI (use `mvx_abi` on the receiver address on `{{network}}`), match return types to the endpoint signature.
+- Use `mvx_sc_decode` with the ABI type information to decode return values.
+- If you have the contract ABI (use `mvx_sc_abi` on the receiver address on `{{network}}`), match return types to the endpoint signature.
 
 ### 2.3 Failure Analysis
 If the transaction failed, identify the root cause:
@@ -88,8 +88,8 @@ For SC errors, decode the error message from the result data:
 - Match against known error strings in the contract.
 
 If the error is not immediately clear:
-- Use `mvx_abi` on the contract to understand the endpoint signature.
-- Use `mvx_query` to check the current contract state -- maybe a precondition is not met.
+- Use `mvx_sc_abi` on the contract to understand the endpoint signature.
+- Use `mvx_sc_query` to check the current contract state -- maybe a precondition is not met.
 - Use `mvx_account` to verify the sender and contract balances.
 
 ## Phase 3: Event Analysis
@@ -101,7 +101,7 @@ For each event/log entry in the transaction:
 - **Topics**: indexed parameters (hex-encoded, decode each)
 - **Data**: non-indexed parameters (hex-encoded, decode)
 
-If the contract ABI is available (from `mvx_abi`), match events to their definitions to decode topic and data types correctly.
+If the contract ABI is available (from `mvx_sc_abi`), match events to their definitions to decode topic and data types correctly.
 
 ### 3.2 Standard Events
 Recognize standard MultiversX events: `ESDTTransfer`, `ESDTNFTTransfer`, `MultiESDTNFTTransfer` (token movements), `ESDTLocalMint`/`ESDTLocalBurn` (supply changes), `ESDTNFTCreate`/`ESDTNFTBurn` (NFT lifecycle), `writeLog` (generic logs), `completedTxEvent` (async completion), `SCDeploy` (deployment), `signalError` (explicit errors).
