@@ -23,6 +23,7 @@ import { signMessage } from "./tools/sign-message.js";
 import { verifyMessage } from "./tools/verify-message.js";
 import { decodeNativeAuth, generateNativeAuth } from "./tools/native-auth.js";
 import { simulateTransaction, estimateGas } from "./tools/simulate.js";
+import { registerPrompts } from "./prompts/index.js";
 
 /** JSON.stringify replacer that converts BigInt to string */
 function safeStringify(obj: unknown): string {
@@ -803,6 +804,9 @@ server.tool(
     }
   }
 );
+
+// ─── Register prompts (audit, test, deploy, debug) ─────────────────────
+registerPrompts(server);
 
 // ─── Start server ───────────────────────────────────────────────────────
 async function main() {
