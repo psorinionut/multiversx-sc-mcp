@@ -67,8 +67,8 @@ export async function walletInfo(params: {
 }
 
 function buildPemContent(label: string, keyHex: string): string {
-  const keyBytes = Buffer.from(keyHex, "hex");
-  const base64 = keyBytes.toString("base64");
+  // MultiversX PEM format: base64-encode the hex STRING (not the raw bytes)
+  const base64 = Buffer.from(keyHex).toString("base64");
   const lines: string[] = [];
   for (let i = 0; i < base64.length; i += 64) {
     lines.push(base64.substring(i, i + 64));
