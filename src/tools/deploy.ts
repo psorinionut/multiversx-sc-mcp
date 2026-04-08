@@ -10,7 +10,8 @@ import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
-import type { NetworkName } from "../utils/networks.js";
+import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
 
 export async function deployContract(params: {
   wasmPath: string;
@@ -52,8 +53,13 @@ export async function deployContract(params: {
     );
   }
 
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
   const deployerAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
@@ -99,9 +105,6 @@ export async function deployContract(params: {
     BigInt(deployerAccount.nonce)
   );
 
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  const explorerPrefix = net === "mainnet" ? "" : `${net}-`;
-
   return {
     txHash,
     status: "sent",
@@ -109,7 +112,7 @@ export async function deployContract(params: {
     contractAddress: contractAddress.toBech32(),
     gasLimit,
     properties: { upgradeable, readable, payable, payableBySc },
-    explorerUrl: `https://${explorerPrefix}explorer.multiversx.com/transactions/${txHash}`,
+    explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
 }
 
@@ -142,6 +145,8 @@ export async function upgradeContract(params: {
     network,
   } = params;
 
+  validateAddress(address);
+
   if (!existsSync(wasmPath)) {
     throw new Error(`WASM file not found: ${wasmPath}`);
   }
@@ -153,8 +158,13 @@ export async function upgradeContract(params: {
     );
   }
 
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
   const callerAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
@@ -191,25 +201,12 @@ export async function upgradeContract(params: {
 
   const txHash = await provider.sendTransaction(tx);
 
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  const explorerPrefix = net === "mainnet" ? "" : `${net}-`;
-
   return {
     txHash,
     status: "sent",
     contractAddress: address,
     gasLimit,
     properties: { upgradeable, readable, payable, payableBySc },
-    explorerUrl: `https://${explorerPrefix}explorer.multiversx.com/transactions/${txHash}`,
+    explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
-}
-
-function getChainId(network?: NetworkName): string {
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  switch (net) {
-    case "mainnet": return "1";
-    case "testnet": return "T";
-    case "devnet": return "D";
-    default: return "1";
-  }
 }

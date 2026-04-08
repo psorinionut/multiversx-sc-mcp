@@ -1,5 +1,7 @@
 import { Address } from "@multiversx/sdk-core";
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 export async function readStorage(params: {
   address: string;
@@ -7,14 +9,15 @@ export async function readStorage(params: {
   network?: NetworkName;
 }) {
   const { address, key, network } = params;
+  validateAddress(address);
   const config = resolveNetwork(network);
 
-  // Convert key to hex if it's a plain string (mapper name)
-  const hexKey = isHex(key) ? key : Buffer.from(key).toString("hex");
+  // Convert key to hex if it has a 0x prefix; otherwise treat as mapper name
+  const hexKey = key.startsWith("0x") ? key.slice(2) : Buffer.from(key).toString("hex");
 
   // Use gateway endpoint for storage key reads
   const url = `${config.gatewayUrl}/address/${address}/key/${hexKey}`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
     throw new Error(`Gateway error: ${response.status} ${response.statusText}`);
@@ -46,10 +49,11 @@ export async function listStorageKeys(params: {
   network?: NetworkName;
 }) {
   const { address, network } = params;
+  validateAddress(address);
   const config = resolveNetwork(network);
 
   const url = `${config.apiUrl}/accounts/${address}/keys`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
     throw new Error(`API error: ${response.status} ${response.statusText}`);
@@ -69,10 +73,6 @@ export async function listStorageKeys(params: {
     keys: keys.slice(0, 100), // Limit to first 100 to avoid huge responses
     note: keys.length > 100 ? `Showing first 100 of ${keys.length} keys.` : undefined,
   };
-}
-
-function isHex(str: string): boolean {
-  return /^[0-9a-fA-F]+$/.test(str) && str.length % 2 === 0;
 }
 
 function tryDecodeHexString(hex: string): string | null {

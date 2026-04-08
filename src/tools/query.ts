@@ -10,6 +10,8 @@ import type { ApiNetworkProvider } from "@multiversx/sdk-core";
 import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
 import type { NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
+import { serializeValue } from "../utils/serialize.js";
 
 export async function queryContract(params: {
   address: string;
@@ -19,6 +21,7 @@ export async function queryContract(params: {
   network?: NetworkName;
 }) {
   const { address, endpoint, arguments: args = [], abiPath, network } = params;
+  validateAddress(address);
 
   const contractAddress = Address.newFromBech32(address);
   const provider = getApiProvider(network);
@@ -89,6 +92,9 @@ async function queryRaw(
   const encodedArgs = args.map((a) => {
     if (typeof a === "string") {
       const hex = a.startsWith("0x") ? a.slice(2) : a;
+      if (!/^[0-9a-fA-F]*$/.test(hex)) {
+        throw new Error(`Without ABI, arguments must be hex strings. Got: "${a}". Provide abiPath for auto-encoding.`);
+      }
       return Buffer.from(hex, "hex");
     }
     if (typeof a === "number") {
@@ -133,39 +139,3 @@ function formatDecodedValues(
   });
 }
 
-function serializeValue(val: unknown): unknown {
-  if (val === null || val === undefined) return null;
-  if (typeof val === "bigint") return val.toString();
-  if (typeof val === "boolean" || typeof val === "number" || typeof val === "string") return val;
-  if (Buffer.isBuffer(val)) return val.toString("hex");
-
-  if (val instanceof Uint8Array) return Buffer.from(val).toString("hex");
-
-  if (Array.isArray(val)) return val.map(serializeValue);
-
-  if (typeof val === "object") {
-    // Handle Address-like objects
-    if ("toBech32" in val && typeof (val as Record<string, unknown>).toBech32 === "function") {
-      return (val as { toBech32(): string }).toBech32();
-    }
-    if ("bech32" in val && typeof (val as Record<string, unknown>).bech32 === "function") {
-      return (val as { bech32(): string }).bech32();
-    }
-    // Handle BigNumber-like objects
-    if ("toFixed" in val && typeof (val as Record<string, unknown>).toFixed === "function") {
-      return (val as { toFixed(): string }).toFixed();
-    }
-    if ("toString" in val && typeof (val as Record<string, unknown>).toString === "function") {
-      const str = (val as { toString(): string }).toString();
-      if (str !== "[object Object]") return str;
-    }
-    // Recursively serialize object properties
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(val)) {
-      result[key] = serializeValue(value);
-    }
-    return result;
-  }
-
-  return String(val);
-}

@@ -47,6 +47,10 @@ Estimate deployment gas based on WASM size:
 ## Deployment
 
 ### Step 5: Deploy the Contract
+
+**MAINNET SAFETY**: If `{{network}}` is mainnet, STOP and ask for explicit confirmation before proceeding:
+> You are about to deploy a new contract on MAINNET. This will use real funds for gas. Do you want to proceed?
+
 Use `mvx_sc_deploy` with:
 - `wasmPath`: `{{wasmPath}}`
 - `network`: `{{network}}`
@@ -154,5 +158,10 @@ Generate a summary report:
 ### Next Steps
 Recommend the user's next actions:
 - If owner-only setup endpoints exist (e.g., `registerToken`, `setConfig`), list them.
-- If the contract needs ESDT roles, explain how to set them.
+- If the contract needs ESDT roles, explain how to set them. Use `mvx_token_info` on `{{network}}` to verify token roles are correctly assigned after setup.
 - If the contract interacts with other contracts, note required registrations.
+
+## Next Steps
+- Run the **test-contract** workflow to verify the deployment works correctly
+- If issues found, use the **debug-tx** workflow to investigate failed transactions
+- For security review, run the **audit-onchain** workflow on the deployed contract

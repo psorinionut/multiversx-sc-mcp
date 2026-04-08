@@ -110,6 +110,35 @@ Applies when token swaps, liquidity pools, lending, yield farming, price calcula
 - **Governance**: Are critical parameter changes behind a timelock? Is there a pause endpoint?
 - **Invariant Testing**: Define protocol invariants (e.g., `k = x * y` for AMM) and verify they hold.
 
+## Calibration & False Positive Rules
+
+Before assigning severity to any finding, apply these MultiversX-specific calibration rules:
+
+1. **Owner trust is inherent**: On MultiversX, the contract owner can ALWAYS deploy a contract upgrade and bypass any logic. Therefore `#[only_owner]` endpoints do NOT represent a new trust boundary. Do NOT flag owner-only endpoints as vulnerabilities. Owner-controlled endpoints are at most Low/Informational.
+
+2. **Empty upgrade() is the standard pattern**: In modern MultiversX smart contracts, `fn upgrade(&self) {}` with an empty body is normal. Orphaned storage keys from removed mappers are just wasted space -- the framework never reads them unless code references them. Do NOT flag empty `upgrade()` as a finding unless there is a concrete, provable issue (storage key name collision with new mappers, or storage format change requiring data migration).
+
+3. **Block nonce/timestamp subtraction cannot underflow**: When the stored value always originates from `self.blockchain().get_block_nonce()` or `get_block_timestamp()`, subtraction `current - stored` cannot underflow because the blockchain is monotonically increasing. Do NOT flag these as underflow risks. Only flag if an admin setter or code path writes an arbitrary (potentially future) value to that storage.
+
+4. **Trace preconditions through actual callers**: Before assigning severity to ANY finding, trace the preconditions back through actual callers. Ask: "Can the trigger condition actually occur given how entry points invoke this function?" If the trigger condition is unreachable from any public entry point, the finding is a false positive.
+
+5. **Zero Critical/High in DeFi is suspicious**: Finding zero major issues in a complex DeFi contract is rare. If your audit finds nothing major, go back and re-examine token accounting, state transitions, and admin action effects.
+
+## Quality Gates
+
+Before finalizing the audit report, verify ALL of these gates:
+
+1. [ ] Completed ALL vulnerability patterns A-M
+2. [ ] Completed ALL cross-cutting sweeps G1-G8
+3. [ ] Checked git history for removed storage mappers (pattern F)
+4. [ ] Analyzed early period blocking -- first N weeks/epochs (pattern I)
+5. [ ] Quantified removal impact on claimable window (pattern J)
+6. [ ] Identified unnecessary endpoints -- add_X without usage (pattern H)
+7. [ ] Every Critical/High has a proof-of-concept or clear exploit path
+8. [ ] Did NOT dismiss issues as "intentional" without verifying
+9. [ ] Did NOT flag owner-only endpoints as Critical/High (owner trust rule)
+10. [ ] Did NOT flag empty upgrade() as a vulnerability without concrete collision/migration evidence
+
 ## Phase 5: Dynamic Verification
 
 1. Run `cargo test` -- document pass/fail/skip counts.
@@ -128,3 +157,7 @@ Produce a report with these sections:
 6. **Test Quality Score** (1-10): Unit test coverage, integration realism, WASM build reproducibility.
 
 **Zero major issues in DeFi = rare. Re-check.**
+
+## Complementary Analysis
+- If the contract is deployed, also run the **audit-onchain** workflow to verify on-chain state matches expectations
+- Use **test-contract** to verify the deployed instance

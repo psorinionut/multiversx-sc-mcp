@@ -52,6 +52,7 @@ For **every** view endpoint in the ABI:
 ### 2.2 Storage Inspection
 Use `mvx_sc_storage_keys` to list all storage keys. Then for important keys:
 - Read with `mvx_sc_storage`
+- Use `mvx_sc_decode` to decode any complex storage values found in hex format
 - Cross-reference with view results (should match)
 - Look for keys that views don't expose (hidden state)
 
@@ -163,3 +164,8 @@ State Consistency: [score /10]
 - [ ] Findings documented with evidence
 
 **If you found zero issues, you missed something. Re-check.**
+
+## Complementary Analysis
+- If the contract source code is available (verified or local), also run the **audit-source** workflow for full vulnerability analysis with patterns A-M
+- Use the **test-contract** workflow to systematically test all endpoints
+- For suspicious transactions, use the **debug-tx** workflow

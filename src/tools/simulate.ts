@@ -10,7 +10,8 @@ import {
 import { readFile } from "fs/promises";
 import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
-import type { NetworkName } from "../utils/networks.js";
+import { getChainId, type NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
 
 // Zero bech32 address used as default caller when no wallet is provided
 const ZERO_ADDRESS =
@@ -42,7 +43,7 @@ export async function simulateTransaction(params: {
     address,
     endpoint,
     arguments: args = [],
-    gasLimit = 30_000_000,
+    gasLimit = Number(process.env.MULTIVERSX_DEFAULT_GAS_LIMIT) || 50_000_000,
     value = "0",
     esdtTransfers = [],
     callerAddress: callerOverride,
@@ -50,6 +51,8 @@ export async function simulateTransaction(params: {
     walletPem,
     network,
   } = params;
+
+  validateAddress(address);
 
   const provider = getApiProvider(network);
   const contractAddress = Address.newFromBech32(address);
@@ -64,8 +67,12 @@ export async function simulateTransaction(params: {
 
   if (pemPath) {
     // Wallet available — build a properly signed transaction
-    const pemContent = await readFile(pemPath, "utf-8");
-    signer = UserSigner.fromPem(pemContent);
+    try {
+      const pemContent = await readFile(pemPath, "utf-8");
+      signer = UserSigner.fromPem(pemContent);
+    } catch (err) {
+      throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+    }
     callerAddress = signer.getAddress();
     checkSignature = true;
   } else if (callerOverride) {
@@ -163,6 +170,8 @@ export async function estimateGas(params: {
     network,
   } = params;
 
+  validateAddress(address);
+
   const provider = getApiProvider(network);
   const contractAddress = Address.newFromBech32(address);
   const chainId = getChainId(network);
@@ -215,20 +224,3 @@ export async function estimateGas(params: {
   };
 }
 
-function getChainId(network?: NetworkName): string {
-  const net = (
-    network ||
-    process.env.MULTIVERSX_NETWORK ||
-    "mainnet"
-  ).toLowerCase();
-  switch (net) {
-    case "mainnet":
-      return "1";
-    case "testnet":
-      return "T";
-    case "devnet":
-      return "D";
-    default:
-      return "1";
-  }
-}

@@ -10,7 +10,8 @@ import {
 } from "@multiversx/sdk-core";
 import { readFile } from "fs/promises";
 import { getApiProvider } from "../core/provider.js";
-import type { NetworkName } from "../utils/networks.js";
+import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
 
 export async function transfer(params: {
   to: string;
@@ -29,6 +30,8 @@ export async function transfer(params: {
     network,
   } = params;
 
+  validateAddress(to);
+
   if (value === "0" && esdtTransfers.length === 0) {
     throw new Error("Provide either 'value' (EGLD amount) or 'esdtTransfers' to send.");
   }
@@ -40,8 +43,13 @@ export async function transfer(params: {
     );
   }
 
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
   const senderAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
@@ -98,9 +106,6 @@ export async function transfer(params: {
 
   const txHash = await provider.sendTransaction(tx);
 
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  const explorerPrefix = net === "mainnet" ? "" : `${net}-`;
-
   return {
     txHash,
     status: "sent",
@@ -108,16 +113,6 @@ export async function transfer(params: {
     receiver: to,
     value: value !== "0" ? value : undefined,
     esdtTransfers: esdtTransfers.length > 0 ? esdtTransfers : undefined,
-    explorerUrl: `https://${explorerPrefix}explorer.multiversx.com/transactions/${txHash}`,
+    explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
-}
-
-function getChainId(network?: NetworkName): string {
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  switch (net) {
-    case "mainnet": return "1";
-    case "testnet": return "T";
-    case "devnet": return "D";
-    default: return "1";
-  }
 }

@@ -40,9 +40,16 @@ From the ABI, identify view endpoints that return token identifiers (e.g., `getT
 ### 2.1 Query All Views
 For **every** view endpoint discovered in Phase 1.2:
 - Call `mvx_sc_query` with address `{{address}}`, the function name, and appropriate arguments on `{{network}}`.
-- If the view requires arguments you do not know, skip it and note it as "requires input".
 - Record every result in a structured table.
 - Flag unexpected values: zero balances where non-zero expected, empty collections, max uint values.
+
+For views that require arguments:
+- Check if the argument is an address -- try the contract owner or deployer address
+- Check if the argument is a token ID -- read from storage or use `mvx_token_info` on `{{network}}` to find managed tokens
+- Check if the argument is a number -- try 0, 1, or values found in other view results
+- If arguments cannot be determined, document the view as "untested -- requires: [arg types]"
+
+For each token identifier found in views or storage, use `mvx_token_info` on `{{network}}` to verify token properties (decimals, supply, roles, owner).
 
 ### 2.2 Storage Key Enumeration
 Use `mvx_sc_storage_keys` with address `{{address}}` on `{{network}}` to list all storage keys.
@@ -79,6 +86,7 @@ For critical public endpoints, reason about:
 - Re-entrancy: Does the endpoint make external calls before updating state?
 
 ### 3.3 Gas Analysis
+Use `mvx_sc_estimate_gas` on `{{network}}` for key public endpoints to get concrete gas estimates.
 For key operations, estimate if any endpoint could be unusually expensive:
 - Endpoints that iterate over storage collections.
 - Endpoints that make multiple cross-contract calls.
@@ -151,3 +159,8 @@ Overall Health: [score /10]
 - [ ] Edge cases considered
 - [ ] Cross-contract dependencies checked
 - [ ] Report generated with evidence
+
+## Next Steps
+- If issues found, use the **debug-tx** workflow to investigate specific transactions
+- For deeper analysis, run the **audit-onchain** workflow
+- If source code is available, complement with the **audit-source** workflow

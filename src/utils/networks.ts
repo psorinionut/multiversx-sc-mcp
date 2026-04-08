@@ -45,3 +45,23 @@ export function resolveNetwork(network?: string): NetworkConfig {
     gatewayUrl: process.env.MULTIVERSX_GATEWAY_URL || config.gatewayUrl,
   };
 }
+
+export function getChainId(network?: string): string {
+  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
+  switch (net) {
+    case "mainnet":
+      return "1";
+    case "testnet":
+      return "T";
+    case "devnet":
+      return "D";
+    default:
+      return "1";
+  }
+}
+
+export function getExplorerUrl(network: string | undefined, path: string): string {
+  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
+  const explorerPrefix = net === "mainnet" ? "" : `${net}-`;
+  return `https://${explorerPrefix}explorer.multiversx.com${path}`;
+}

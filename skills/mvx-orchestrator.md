@@ -15,9 +15,14 @@ I can find and inspect any contract on MultiversX:
 Full contract lifecycle from deploy to verification:
 - **Deploy**: "Deploy the router on testnet" → `mvx_sc_deploy`
 - **Upgrade**: "Upgrade the contract with new WASM" → `mvx_sc_upgrade`
+- **Guided upgrade workflow**: Use the `mvx_upgrade_flow` prompt for safe step-by-step upgrades with pre/post verification
 - **Verify**: "Verify the contract on the explorer" → `mvx_sc_verify` + `mvx_sc_verify_status`
+- **Safe endpoint call**: Before calling mutable endpoints, simulate first with `mvx_sc_simulate`, check gas with `mvx_sc_estimate_gas`, then call with `mvx_sc_call`
 - **Call endpoints**: "Call claimRewards on the farm" → `mvx_sc_call`
-- **Guided workflow**: Use the `mvx_deploy_flow` prompt for step-by-step deployment
+- **Guided deploy workflow**: Use the `mvx_deploy_flow` prompt for step-by-step deployment
+
+**MAINNET SAFETY**: Before any `mvx_sc_deploy`, `mvx_sc_upgrade`, `mvx_sc_call`, or `mvx_transfer` on mainnet, ALWAYS ask for explicit user confirmation:
+> MAINNET TRANSACTION: You are about to [action] on mainnet. This is irreversible and uses real funds. Do you want to proceed?
 
 ### 3. Test & Simulate
 Test contracts without spending gas:
@@ -48,10 +53,14 @@ Two audit modes:
 - **Native auth**: "Generate a native auth token" / "Decode this auth token" → `mvx_native_auth_generate` / `mvx_native_auth_decode`
 - **Network info**: "What's the current epoch on mainnet?" → `mvx_network_config`
 
+### 8. Monitoring & Batch Operations
+- **Health checks**: For ongoing health checks, periodically run the **test-contract** workflow to verify contract state and detect anomalies.
+- **Batch operations**: For multi-contract operations, call endpoints sequentially with `mvx_sc_call`. Always simulate each call first with `mvx_sc_simulate`.
+
 ## Networks
 All tools work on **mainnet** (default), **testnet**, and **devnet**. Just specify the network parameter.
 
 ## Getting Started
-Tell me what you want to do — explore a contract, deploy something, audit code, debug a transaction — and I'll use the right tools automatically.
+Tell me what you want to do -- explore a contract, deploy something, upgrade, audit code, debug a transaction -- and I'll use the right tools automatically.
 
 What would you like to work on?

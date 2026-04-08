@@ -144,4 +144,50 @@ export function registerPrompts(server: McpServer) {
       }]
     })
   );
+
+  // ─── Upgrade Flow ─────────────────────────────────────────────────────
+  server.prompt(
+    "mvx_upgrade_flow",
+    "Guided smart contract upgrade workflow with pre/post verification, mainnet safety confirmation, and diff review.",
+    {
+      address: z.string().describe("Contract address to upgrade (erd1...)"),
+      wasmPath: z.string().describe("Path to the new compiled .wasm file"),
+      abiPath: z.string().optional().describe("Path to .abi.json (for ABI diff review)"),
+      network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: testnet)")
+    },
+    async ({ address, wasmPath, abiPath, network }) => ({
+      messages: [{
+        role: "user",
+        content: {
+          type: "text",
+          text: loadSkill("mvx-upgrade-flow.md", {
+            address,
+            wasmPath,
+            abiPath: abiPath || "not provided",
+            network: network || "testnet"
+          })
+        }
+      }]
+    })
+  );
+
+  // ─── Token Management ─────────────────────────────────────────────────
+  server.prompt(
+    "mvx_token_management",
+    "Inspect, issue, and manage ESDT tokens — query info, check roles, troubleshoot transfers, and understand token issuance flows.",
+    {
+      network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)")
+    },
+    async ({ network }) => ({
+      messages: [{
+        role: "user",
+        content: {
+          type: "text",
+          text: loadSkill("mvx-token-management.md", {
+            network: network || "mainnet"
+          })
+        }
+      }]
+    })
+  );
 }

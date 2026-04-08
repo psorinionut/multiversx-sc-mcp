@@ -1,20 +1,23 @@
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 export async function queryAccount(params: {
   address: string;
   network?: NetworkName;
 }) {
   const { address, network } = params;
+  validateAddress(address);
   const config = resolveNetwork(network);
 
   // Fetch full account info directly from API (richer than SDK's getAccount)
-  const response = await fetch(`${config.apiUrl}/accounts/${address}`);
+  const response = await fetchWithTimeout(`${config.apiUrl}/accounts/${address}`);
   if (!response.ok) {
     throw new Error(`Account not found or API error: ${response.status}`);
   }
 
   const data = (await response.json()) as Record<string, unknown>;
-  const isSmartContract = address.startsWith("erd1qqqqqqqqqqqqq");
+  const isSmartContract = !!data.code || !!data.codeHash;
   const assets = (data.assets || {}) as Record<string, unknown>;
 
   const result: Record<string, unknown> = {

@@ -3,6 +3,8 @@ import { existsSync } from "fs";
 import { createHash } from "crypto";
 import { UserSigner } from "@multiversx/sdk-core";
 import type { NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 const VERIFIER_URLS: Record<string, string> = {
   mainnet: "https://play-api.multiversx.com",
@@ -32,6 +34,7 @@ export async function verifyContract(params: {
   network?: NetworkName;
 }) {
   const { address, packagedSrc, dockerImage, contractVariant, walletPem, network } = params;
+  validateAddress(address);
 
   if (!existsSync(packagedSrc)) {
     throw new Error(`Packaged source file not found: ${packagedSrc}`);
@@ -51,8 +54,13 @@ export async function verifyContract(params: {
   const sourceCode = JSON.parse(sourceContent);
 
   // Load signer
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
 
   // Compact JSON (no spaces after separators) — matches Python's separators=(',', ':')
   const compactPayload = JSON.stringify({
@@ -79,7 +87,7 @@ export async function verifyContract(params: {
   };
 
   // Submit
-  const response = await fetch(`${verifierUrl}/verifier`, {
+  const response = await fetchWithTimeout(`${verifierUrl}/verifier`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
@@ -87,7 +95,7 @@ export async function verifyContract(params: {
 
   const data = (await response.json()) as Record<string, unknown>;
 
-  if (!response.ok && response.status !== 200 && response.status !== 408) {
+  if (!response.ok && response.status !== 408) {
     throw new Error(`Verification request failed (${response.status}): ${JSON.stringify(data)}`);
   }
 
@@ -120,7 +128,7 @@ export async function checkVerificationStatus(params: {
   const { taskId, address, network } = params;
   const { url: verifierUrl, net } = getVerifierUrl(network);
 
-  const response = await fetch(`${verifierUrl}/tasks/${taskId}`);
+  const response = await fetchWithTimeout(`${verifierUrl}/tasks/${taskId}`);
   if (!response.ok) {
     throw new Error(`Failed to check task status: ${response.status} ${response.statusText}`);
   }

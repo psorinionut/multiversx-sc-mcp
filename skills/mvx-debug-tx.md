@@ -129,3 +129,7 @@ Produce a report with these sections:
 6. **Failure Diagnosis** (if failed): Root cause (one line), error code (hex + decoded), error message, which step in the trace failed.
 7. **Explanation**: Plain-English narrative of what the transaction did or tried to do. If failed, explain exactly why and what conditions were not met. If succeeded, summarize the net effect.
 8. **Recommendations** (if failed): What the user should do -- correct arguments, gas adjustments, state changes required before retrying.
+
+## Next Steps
+- After identifying the issue, fix the code and use the **upgrade-flow** workflow to deploy the fix
+- Run the **test-contract** workflow to verify the fix works

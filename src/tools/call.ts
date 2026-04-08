@@ -11,7 +11,8 @@ import {
 import { readFile } from "fs/promises";
 import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
-import type { NetworkName } from "../utils/networks.js";
+import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
 
 export async function callContract(params: {
   address: string;
@@ -28,13 +29,15 @@ export async function callContract(params: {
     address,
     endpoint,
     arguments: args = [],
-    gasLimit = 30_000_000,
+    gasLimit = Number(process.env.MULTIVERSX_DEFAULT_GAS_LIMIT) || 50_000_000,
     value = "0",
     esdtTransfers = [],
     abiPath,
     walletPem,
     network,
   } = params;
+
+  validateAddress(address);
 
   // Resolve wallet
   const pemPath = walletPem || process.env.MULTIVERSX_WALLET_PEM;
@@ -44,8 +47,13 @@ export async function callContract(params: {
     );
   }
 
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
   const callerAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
@@ -90,9 +98,6 @@ export async function callContract(params: {
   // Send
   const txHash = await provider.sendTransaction(tx);
 
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  const explorerPrefix = net === "mainnet" ? "" : `${net}-`;
-
   return {
     txHash,
     sender: callerAddress.toBech32(),
@@ -100,20 +105,6 @@ export async function callContract(params: {
     endpoint,
     gasLimit,
     status: "sent",
-    explorerUrl: `https://${explorerPrefix}explorer.multiversx.com/transactions/${txHash}`,
+    explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
-}
-
-function getChainId(network?: NetworkName): string {
-  const net = (network || process.env.MULTIVERSX_NETWORK || "mainnet").toLowerCase();
-  switch (net) {
-    case "mainnet":
-      return "1";
-    case "testnet":
-      return "T";
-    case "devnet":
-      return "D";
-    default:
-      return "1";
-  }
 }
