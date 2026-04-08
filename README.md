@@ -1,8 +1,8 @@
 # multiversx-sc-mcp
 
-MCP server for interacting with the MultiversX blockchain. Query smart contracts, read storage, send transactions, deploy contracts, manage wallets, convert data, and more — all ABI-aware with auto-discovery.
+MCP server for MultiversX smart contract development — deploy, upgrade, verify, query, simulate, and test contracts directly from AI agents.
 
-**26 tools** for full blockchain and smart contract interaction from AI agents like Claude.
+**26 tools** + **8 AI workflows** for full blockchain and smart contract interaction.
 
 ## Features
 
@@ -11,7 +11,7 @@ MCP server for interacting with the MultiversX blockchain. Query smart contracts
 | Tool | Description | Wallet |
 |------|-------------|:------:|
 | `mvx_sc_query` | Query view/endpoint with ABI encoding/decoding | No |
-| `mvx_sc_storage` | Read a storage key (mapper name or hex) | No |
+| `mvx_sc_storage` | Read a storage key (mapper name or `0x`-prefixed hex) | No |
 | `mvx_sc_storage_keys` | List all storage keys | No |
 | `mvx_sc_abi` | Inspect contract ABI (endpoints, views, types) | No |
 | `mvx_sc_decode` | Decode hex data using ABI types | No |
@@ -42,6 +42,21 @@ MCP server for interacting with the MultiversX blockchain. Query smart contracts
 | `mvx_wallet_new` | Create a new wallet (PEM or JSON) | No |
 | `mvx_wallet_info` | Get address from a PEM file | No |
 
+### AI Workflows (MCP Prompts)
+
+Built-in guided workflows that orchestrate the tools above:
+
+| Prompt | Description |
+|--------|-------------|
+| `mvx` | Main orchestrator — shows all capabilities, routes to the right workflow |
+| `mvx_audit_onchain` | Audit a deployed contract using on-chain data (queries views, reads storage, checks ABI) |
+| `mvx_audit_source` | Audit source code with patterns A-M, severity calibration, and quality gates |
+| `mvx_test_contract` | Automated testing — query all views, read storage, simulate calls, generate report |
+| `mvx_deploy_flow` | Guided deployment: build, deploy, verify, test |
+| `mvx_upgrade_flow` | Guided upgrade with pre/post verification and mainnet safety confirmation |
+| `mvx_debug_tx` | Debug a transaction — decode results, events, identify failure reason |
+| `mvx_token_management` | Inspect and manage ESDT tokens — query info, check roles, troubleshoot |
+
 ### Key Capabilities
 
 - **ABI auto-discovery** — just provide a contract address; ABI is fetched automatically for verified contracts
@@ -49,6 +64,10 @@ MCP server for interacting with the MultiversX blockchain. Query smart contracts
 - **Multi-network** — mainnet, testnet, devnet with per-request override
 - **Zero config for reads** — no wallet needed for queries, storage, or ABI inspection
 - **Safe by default** — write operations require explicit wallet configuration
+- **Mainnet safety rails** — all write operations on mainnet require explicit user confirmation
+- **Address validation** — all inputs validated before network calls
+- **Timeout protection** — all network calls have 30s timeout (no hanging)
+- **Cross-linked workflows** — each workflow suggests next steps and related workflows
 
 ## Quick Start
 
@@ -61,7 +80,7 @@ claude mcp add multiversx-sc -- npx -y multiversx-sc-mcp
 ### Manual Setup
 
 ```bash
-git clone https://github.com/multiversx/multiversx-sc-mcp.git
+git clone https://github.com/psorinionut/multiversx-sc-mcp.git
 cd multiversx-sc-mcp
 npm install
 ```
@@ -99,6 +118,7 @@ claude mcp add multiversx-sc -- multiversx-sc-mcp
 | `MULTIVERSX_API_URL` | (auto) | Custom API URL (overrides network default) |
 | `MULTIVERSX_GATEWAY_URL` | (auto) | Custom gateway URL |
 | `MULTIVERSX_WALLET_PEM` | (none) | Path to PEM wallet (for write operations) |
+| `MULTIVERSX_DEFAULT_GAS_LIMIT` | `50000000` | Default gas limit for SC calls |
 
 ## Usage Examples
 
@@ -132,17 +152,29 @@ claude mcp add multiversx-sc -- multiversx-sc-mcp
 → mvx_convert(value, from: "bech32", to: "hex")
 ```
 
-### Deploy and verify a contract
+### Deploy, verify, and test
 ```
 → mvx_sc_deploy(wasmPath, abiPath, network: "testnet")
-→ mvx_sc_verify(address, packagedSrc, dockerImage, network: "testnet")
+→ mvx_sc_verify(address, packagedSrc, dockerImage)
 → mvx_sc_verify_status(taskId)
+→ mvx_test_contract prompt for automated testing
+```
+
+### Safe upgrade flow
+```
+→ mvx_upgrade_flow prompt (pre-flight checks, mainnet confirmation, post-upgrade verification)
 ```
 
 ### Simulate before sending
 ```
 "Simulate calling addLiquidity on pair erd1qqq..."
 → mvx_sc_simulate(address, "addLiquidity", args, gasLimit)
+```
+
+### Audit a deployed contract
+```
+"Audit the contract at erd1qqq..."
+→ mvx_audit_onchain prompt (queries views, reads storage, checks ABI, finds vulnerabilities)
 ```
 
 ## How ABI Resolution Works
@@ -158,9 +190,9 @@ ABIs are cached in memory for the session duration.
 
 ```
 src/
-├── index.ts                # MCP server setup, 26 tool registrations
+├── index.ts                # MCP server — 26 tools + 8 prompts
 ├── core/
-│   ├── provider.ts         # Network provider factory (mainnet/testnet/devnet)
+│   ├── provider.ts         # Network provider factory
 │   └── abi-loader.ts       # ABI fetch (API auto-discovery + local + cache)
 ├── tools/
 │   ├── query.ts            # mvx_sc_query
@@ -182,8 +214,22 @@ src/
 │   ├── verify-message.ts   # mvx_verify_sig
 │   ├── native-auth.ts      # mvx_native_auth_decode, mvx_native_auth_generate
 │   └── wallet.ts           # mvx_wallet_new, mvx_wallet_info
-└── utils/
-    └── networks.ts         # Network URL constants
+├── prompts/
+│   └── index.ts            # 8 AI workflow prompts (load from skills/)
+├── utils/
+│   ├── networks.ts         # Network URLs, getChainId, getExplorerUrl
+│   ├── validation.ts       # Address validation
+│   ├── fetch.ts            # fetchWithTimeout wrapper
+│   └── serialize.ts        # Shared value serialization (BigInt, Address, etc.)
+└── skills/                  # Standalone markdown workflow files
+    ├── mvx-orchestrator.md
+    ├── mvx-audit-onchain.md
+    ├── mvx-audit-source.md
+    ├── mvx-test-contract.md
+    ├── mvx-deploy-flow.md
+    ├── mvx-upgrade-flow.md
+    ├── mvx-debug-tx.md
+    └── mvx-token-management.md
 ```
 
 ## Supported Networks
