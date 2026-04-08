@@ -92,12 +92,12 @@ export async function verifyContract(params: {
     },
   };
 
-  // Submit
+  // Submit (longer timeout — source JSON can be large)
   const response = await fetchWithTimeout(`${verifierUrl}/verifier`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
-  });
+  }, 120000);
 
   const data = (await response.json()) as Record<string, unknown>;
 
