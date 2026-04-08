@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { createHash } from "crypto";
-import { UserSigner } from "@multiversx/sdk-core";
+import { UserSigner, Message, MessageComputer } from "@multiversx/sdk-core";
 import type { NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
@@ -70,10 +70,16 @@ export async function verifyContract(params: {
     contractVariant: contractVariant || null,
   });
 
-  // Sign: SHA256(payload) → hex → concatenate with address → sign raw bytes
+  // Sign: SHA256(payload) → hex → concatenate with address → sign as message
+  // mxpy's Account.sign_message() uses MessageComputer which adds the
+  // "\x17Elrond Signed Message:\n" prefix + length + keccak256 before ed25519 signing.
   const payloadHash = createHash("sha256").update(compactPayload).digest("hex");
   const rawDataToSign = `${address}${payloadHash}`;
-  const signature = await signer.sign(Buffer.from(rawDataToSign));
+
+  const messageComputer = new MessageComputer();
+  const message = new Message({ data: new TextEncoder().encode(rawDataToSign) });
+  const serializedForSigning = messageComputer.computeBytesForSigning(message);
+  const signature = await signer.sign(serializedForSigning);
 
   // Build request
   const request = {

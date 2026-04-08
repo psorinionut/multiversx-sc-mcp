@@ -12,6 +12,7 @@ import { readFile } from "fs/promises";
 import { getApiProvider } from "../core/provider.js";
 import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
+import { getAccountNonce } from "../utils/nonce.js";
 
 export async function transfer(params: {
   to: string;
@@ -53,7 +54,6 @@ export async function transfer(params: {
   const senderAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
-  const senderAccount = await provider.getAccount(senderAddress);
 
   const receiverAddress = Address.newFromBech32(to);
 
@@ -97,7 +97,7 @@ export async function transfer(params: {
     tx.gasLimit = BigInt(gasLimit);
   }
 
-  tx.nonce = BigInt(senderAccount.nonce);
+  tx.nonce = await getAccountNonce(senderAddress.toBech32(), network);
 
   const computer = new TransactionComputer();
   const serialized = computer.computeBytesForSigning(tx);

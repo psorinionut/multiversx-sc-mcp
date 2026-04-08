@@ -13,6 +13,7 @@ import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
 import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
+import { getAccountNonce } from "../utils/nonce.js";
 
 export async function callContract(params: {
   address: string;
@@ -57,7 +58,6 @@ export async function callContract(params: {
   const callerAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
-  const callerAccount = await provider.getAccount(callerAddress);
 
   const contractAddress = Address.newFromBech32(address);
 
@@ -87,7 +87,7 @@ export async function callContract(params: {
     tokenTransfers: tokenTransfers.length > 0 ? tokenTransfers : undefined,
   });
 
-  tx.nonce = BigInt(callerAccount.nonce);
+  tx.nonce = await getAccountNonce(callerAddress.toBech32(), network);
 
   // Sign
   const computer = new TransactionComputer();

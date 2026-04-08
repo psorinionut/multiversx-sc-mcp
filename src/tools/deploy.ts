@@ -12,6 +12,7 @@ import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
 import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
+import { getAccountNonce } from "../utils/nonce.js";
 
 export async function deployContract(params: {
   wasmPath: string;
@@ -63,7 +64,7 @@ export async function deployContract(params: {
   const deployerAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
-  const deployerAccount = await provider.getAccount(deployerAddress);
+  const deployerNonce = await getAccountNonce(deployerAddress.toBech32(), network);
 
   // Read WASM bytecode
   const wasmCode = await readFile(wasmPath);
@@ -87,7 +88,7 @@ export async function deployContract(params: {
     isPayableBySmartContract: payableBySc,
   });
 
-  tx.nonce = BigInt(deployerAccount.nonce);
+  tx.nonce = deployerNonce;
 
   // Sign
   const computer = new TransactionComputer();
@@ -102,7 +103,7 @@ export async function deployContract(params: {
   const addressComputer = new AddressComputer();
   const contractAddress = addressComputer.computeContractAddress(
     deployerAddress,
-    BigInt(deployerAccount.nonce)
+    deployerNonce
   );
 
   return {
@@ -168,7 +169,6 @@ export async function upgradeContract(params: {
   const callerAddress = signer.getAddress();
 
   const provider = getApiProvider(network);
-  const callerAccount = await provider.getAccount(callerAddress);
 
   const wasmCode = await readFile(wasmPath);
   const contractAddress = Address.newFromBech32(address);
@@ -192,7 +192,7 @@ export async function upgradeContract(params: {
     isPayableBySmartContract: payableBySc,
   });
 
-  tx.nonce = BigInt(callerAccount.nonce);
+  tx.nonce = await getAccountNonce(callerAddress.toBech32(), network);
 
   const computer = new TransactionComputer();
   const serialized = computer.computeBytesForSigning(tx);

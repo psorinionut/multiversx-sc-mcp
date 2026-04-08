@@ -12,6 +12,7 @@ import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
 import { getChainId, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
+import { getAccountNonce } from "../utils/nonce.js";
 
 // Zero bech32 address used as default caller when no wallet is provided
 const ZERO_ADDRESS =
@@ -110,8 +111,7 @@ export async function simulateTransaction(params: {
 
   // Set nonce — needed even for simulation
   if (signer) {
-    const account = await provider.getAccount(callerAddress);
-    tx.nonce = BigInt(account.nonce);
+    tx.nonce = await getAccountNonce(callerAddress.toBech32(), network);
   } else {
     tx.nonce = BigInt(0);
   }
