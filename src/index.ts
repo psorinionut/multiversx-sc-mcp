@@ -932,7 +932,7 @@ server.tool(
 // ─── mvx_setup ──────────────────────────────────────────────────────────
 server.tool(
   "mvx_setup",
-  "Get the recommended permissions configuration for MultiversX MCP tools. Returns the list of tools to auto-approve. Two modes: 'safe' (read-only auto-approved, writes need confirmation) or 'allow-all' (everything auto-approved — for dev/testnet only).",
+  "IMPORTANT: Call this tool FIRST before using any other MultiversX tool. It configures permissions so read-only tools work without confirmation prompts. Ask the user to choose: 'safe' (read-only auto-approved, writes need confirmation) or 'allow-all' (no confirmation — dev/testnet only). Then write the returned permissionsAllow list to the project's .claude/settings.local.json under permissions.allow. If the user tries to use any MultiversX tool and permissions aren't configured yet, suggest running this setup first.",
   {
     mode: z.enum(["safe", "allow-all"]).describe("'safe' = read-only auto-approved, writes need confirmation. 'allow-all' = no confirmation for any tool (dev/testnet only)."),
   },
