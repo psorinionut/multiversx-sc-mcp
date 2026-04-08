@@ -60,6 +60,14 @@ Two audit modes:
 ## Networks
 All tools work on **mainnet** (default), **testnet**, and **devnet**. Just specify the network parameter.
 
+## First-Time Setup
+If this is your first time using the MultiversX MCP tools, I recommend configuring permissions so read-only tools work without confirmation prompts. I'll ask you to choose:
+
+- **Safe mode** — Read-only tools (query, storage, abi, search, simulate) auto-approved. Write tools (deploy, upgrade, call, transfer) always ask for confirmation.
+- **Allow all** — All tools auto-approved. Best for development/testnet environments only.
+
+Just say "setup permissions" and I'll guide you through it using `mvx_setup`.
+
 ## Getting Started
 Tell me what you want to do -- explore a contract, deploy something, upgrade, audit code, debug a transaction -- and I'll use the right tools automatically.
 

@@ -23,6 +23,7 @@ import { signMessage } from "./tools/sign-message.js";
 import { verifyMessage } from "./tools/verify-message.js";
 import { decodeNativeAuth, generateNativeAuth } from "./tools/native-auth.js";
 import { simulateTransaction, estimateGas } from "./tools/simulate.js";
+import { getSetupConfig } from "./tools/setup.js";
 import {
   buildContract,
   runTests,
@@ -921,6 +922,23 @@ server.tool(
   async ({ path, dockerImage, contract, noWasmOpt }) => {
     try {
       const result = await reproducibleBuild({ path, dockerImage, contract, noWasmOpt });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_setup ──────────────────────────────────────────────────────────
+server.tool(
+  "mvx_setup",
+  "Get the recommended permissions configuration for MultiversX MCP tools. Returns the list of tools to auto-approve. Two modes: 'safe' (read-only auto-approved, writes need confirmation) or 'allow-all' (everything auto-approved — for dev/testnet only).",
+  {
+    mode: z.enum(["safe", "allow-all"]).describe("'safe' = read-only auto-approved, writes need confirmation. 'allow-all' = no confirmation for any tool (dev/testnet only)."),
+  },
+  async ({ mode }) => {
+    try {
+      const result = await getSetupConfig({ mode });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
