@@ -43,7 +43,7 @@ export async function createWallet(params: {
     mnemonic: mnemonic.toString(),
     format,
     path: outPath,
-    note: "IMPORTANT: Save the mnemonic securely. It cannot be recovered if lost.",
+    note: "SECURITY WARNING: The mnemonic above is your wallet's master key. Save it securely and NEVER share it. Anyone with this mnemonic can access your funds.",
   };
 }
 

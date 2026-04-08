@@ -1,4 +1,5 @@
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 interface NetworkInfo {
   network: string;
@@ -32,8 +33,8 @@ export async function getNetworkConfig(params: {
 
   // Fetch constants and stats in parallel
   const [constantsRes, statsRes] = await Promise.all([
-    fetch(`${config.apiUrl}/constants`),
-    fetch(`${config.apiUrl}/stats`),
+    fetchWithTimeout(`${config.apiUrl}/constants`),
+    fetchWithTimeout(`${config.apiUrl}/stats`),
   ]);
 
   if (!constantsRes.ok) {

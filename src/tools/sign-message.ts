@@ -15,8 +15,13 @@ export async function signMessage(params: {
     );
   }
 
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
   const address = signer.getAddress();
 
   // Build the Message object

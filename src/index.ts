@@ -23,6 +23,14 @@ import { signMessage } from "./tools/sign-message.js";
 import { verifyMessage } from "./tools/verify-message.js";
 import { decodeNativeAuth, generateNativeAuth } from "./tools/native-auth.js";
 import { simulateTransaction, estimateGas } from "./tools/simulate.js";
+import {
+  buildContract,
+  runTests,
+  createNewContract,
+  generateProxy,
+  compareCodehash,
+  reproducibleBuild,
+} from "./tools/sc-meta.js";
 import { registerPrompts } from "./prompts/index.js";
 
 /** JSON.stringify replacer that converts BigInt to string */
@@ -798,6 +806,121 @@ server.tool(
       const result = await estimateGas({
         address, endpoint, arguments: args || [], value, esdtTransfers, abiPath, network,
       });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_sc_build ──────────────────────────────────────────────────────
+server.tool(
+  "mvx_sc_build",
+  "Build a MultiversX smart contract using sc-meta. Compiles the contract WASM, generates ABI. Provide the path to the contract directory (must contain a /meta sub-crate).",
+  {
+    path: z.string().describe("Path to the contract directory (e.g., /path/to/dex/router)"),
+    locked: z.boolean().optional().describe("Require Cargo.lock to be up to date (--locked)"),
+    wasmSymbols: z.boolean().optional().describe("Include debug symbols in WASM (--wasm-symbols)"),
+    noWasmOpt: z.boolean().optional().describe("Skip wasm-opt optimization (--no-wasm-opt)"),
+  },
+  async ({ path, locked, wasmSymbols, noWasmOpt }) => {
+    try {
+      const result = await buildContract({ path, locked, wasmSymbols, noWasmOpt });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_sc_test ───────────────────────────────────────────────────────
+server.tool(
+  "mvx_sc_test",
+  "Run tests for a MultiversX smart contract or project. Uses sc-meta test or falls back to cargo test. Returns pass/fail/ignore counts.",
+  {
+    path: z.string().describe("Path to the contract or project directory"),
+    chainSimulator: z.boolean().optional().describe("Run chain-simulator tests (--chain-simulator)"),
+    wasm: z.boolean().optional().describe("Run WASM-level tests (--wasm)"),
+    nocapture: z.boolean().optional().describe("Show test stdout/stderr output (--nocapture)"),
+  },
+  async ({ path, chainSimulator, wasm, nocapture }) => {
+    try {
+      const result = await runTests({ path, chainSimulator, wasm, nocapture });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_sc_new ────────────────────────────────────────────────────────
+server.tool(
+  "mvx_sc_new",
+  "Create a new MultiversX smart contract from a template. Templates: adder, empty, ping-pong-egld, crypto-zombies.",
+  {
+    template: z.string().describe("Template name (adder, empty, ping-pong-egld, crypto-zombies)"),
+    name: z.string().describe("Name for the new contract"),
+    path: z.string().optional().describe("Target directory (default: current directory)"),
+  },
+  async ({ template, name, path }) => {
+    try {
+      const result = await createNewContract({ template, name, path });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_sc_proxy ──────────────────────────────────────────────────────
+server.tool(
+  "mvx_sc_proxy",
+  "Generate proxy code for a MultiversX smart contract. Runs 'cargo run proxy' in the contract's meta crate to produce typed proxy bindings.",
+  {
+    path: z.string().describe("Path to the contract directory (must contain a /meta sub-crate)"),
+  },
+  async ({ path }) => {
+    try {
+      const result = await generateProxy({ path });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_sc_compare ────────────────────────────────────────────────────
+server.tool(
+  "mvx_sc_compare",
+  "Compare a local WASM file against a deployed smart contract's code on-chain. Reads both bytecodes and checks if they match. Useful for verifying that a build matches a deployment.",
+  {
+    wasmPath: z.string().describe("Path to the local .wasm file"),
+    address: z.string().describe("Deployed contract address (erd1...)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ wasmPath, address, network }) => {
+    try {
+      const result = await compareCodehash({ wasmPath, address, network });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_sc_reproducible_build ─────────────────────────────────────────
+server.tool(
+  "mvx_sc_reproducible_build",
+  "Run a reproducible Docker build for a MultiversX smart contract using mxpy. Produces deterministic WASM output for verification. This is a LONG operation (5-10+ minutes).",
+  {
+    path: z.string().describe("Project root directory"),
+    dockerImage: z.string().describe("Docker image tag (e.g., multiversx/sdk-rust-contract-builder:v11.0.0)"),
+    contract: z.string().optional().describe("Specific contract name (for multi-contract projects)"),
+    noWasmOpt: z.boolean().optional().describe("Skip wasm-opt optimization"),
+  },
+  async ({ path, dockerImage, contract, noWasmOpt }) => {
+    try {
+      const result = await reproducibleBuild({ path, dockerImage, contract, noWasmOpt });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };

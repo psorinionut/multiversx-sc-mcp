@@ -8,6 +8,8 @@ import {
 import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
 import type { NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
+import { serializeValue } from "../utils/serialize.js";
 
 export async function getTransactionResult(params: {
   txHash: string;
@@ -16,6 +18,9 @@ export async function getTransactionResult(params: {
   network?: NetworkName;
 }) {
   const { txHash, contractAddress, abiPath, network } = params;
+  if (contractAddress) {
+    validateAddress(contractAddress);
+  }
 
   const provider = getApiProvider(network);
   const txOnNetwork = await provider.getTransaction(txHash);
@@ -82,21 +87,3 @@ export async function getTransactionResult(params: {
   return result;
 }
 
-function serializeValue(val: unknown): unknown {
-  if (val === null || val === undefined) return null;
-  if (typeof val === "bigint") return val.toString();
-  if (typeof val === "boolean" || typeof val === "number" || typeof val === "string") return val;
-  if (Buffer.isBuffer(val)) return val.toString("hex");
-  if (val instanceof Uint8Array) return Buffer.from(val).toString("hex");
-  if (Array.isArray(val)) return val.map(serializeValue);
-
-  if (typeof val === "object") {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(val)) {
-      result[key] = serializeValue(value);
-    }
-    return result;
-  }
-
-  return String(val);
-}

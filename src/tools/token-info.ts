@@ -1,4 +1,5 @@
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 interface TokenProperties {
   [key: string]: unknown;
@@ -63,7 +64,7 @@ async function tryFetchToken(
   apiUrl: string,
   identifier: string
 ): Promise<Omit<TokenResult, "network"> | null> {
-  const response = await fetch(`${apiUrl}/tokens/${identifier}`);
+  const response = await fetchWithTimeout(`${apiUrl}/tokens/${identifier}`);
   if (!response.ok) return null;
 
   const data = (await response.json()) as TokenProperties;
@@ -104,7 +105,7 @@ async function tryFetchCollection(
   apiUrl: string,
   identifier: string
 ): Promise<Omit<TokenResult, "network"> | null> {
-  const response = await fetch(`${apiUrl}/collections/${identifier}`);
+  const response = await fetchWithTimeout(`${apiUrl}/collections/${identifier}`);
   if (!response.ok) return null;
 
   const data = (await response.json()) as TokenProperties;

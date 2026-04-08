@@ -1,5 +1,6 @@
 import { loadAbi } from "../core/abi-loader.js";
 import type { NetworkName } from "../utils/networks.js";
+import { validateAddress } from "../utils/validation.js";
 
 export async function inspectAbi(params: {
   address?: string;
@@ -7,6 +8,9 @@ export async function inspectAbi(params: {
   network?: NetworkName;
 }) {
   const { address, abiPath, network } = params;
+  if (address) {
+    validateAddress(address);
+  }
 
   if (!address && !abiPath) {
     throw new Error("Provide either 'address' (for auto-fetch) or 'abiPath' (local file).");

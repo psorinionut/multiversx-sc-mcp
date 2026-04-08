@@ -2,6 +2,7 @@ import { Abi } from "@multiversx/sdk-core";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 // In-memory ABI cache: address → Abi
 const abiCache = new Map<string, Abi>();
@@ -59,7 +60,7 @@ async function fetchAbiFromApi(
   const url = `${config.apiUrl}/accounts/${address}/verification`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetchWithTimeout(url);
     if (!response.ok) {
       return null;
     }

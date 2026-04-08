@@ -1,6 +1,7 @@
 import { UserSigner, Message, MessageComputer } from "@multiversx/sdk-core";
 import { readFile } from "fs/promises";
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 /**
  * Decode a MultiversX native auth token.
@@ -92,8 +93,13 @@ export async function generateNativeAuth(params: {
     );
   }
 
-  const pemContent = await readFile(pemPath, "utf-8");
-  const signer = UserSigner.fromPem(pemContent);
+  let signer: UserSigner;
+  try {
+    const pemContent = await readFile(pemPath, "utf-8");
+    signer = UserSigner.fromPem(pemContent);
+  } catch (err) {
+    throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
+  }
   const address = signer.getAddress().toBech32();
 
   // Fetch latest block hash from API
@@ -138,7 +144,7 @@ export async function generateNativeAuth(params: {
 }
 
 async function fetchLatestBlockHash(apiUrl: string): Promise<string> {
-  const response = await fetch(`${apiUrl}/blocks?size=1&fields=hash`);
+  const response = await fetchWithTimeout(`${apiUrl}/blocks?size=1&fields=hash&shard=4294967295`);
   if (!response.ok) {
     throw new Error(`Failed to fetch latest block from API: ${response.status} ${response.statusText}`);
   }

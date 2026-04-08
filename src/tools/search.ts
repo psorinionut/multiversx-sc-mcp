@@ -1,4 +1,5 @@
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 export async function searchContracts(params: {
   query: string;
@@ -10,7 +11,7 @@ export async function searchContracts(params: {
 
   // Search via accounts API (supports name search)
   const url = `${config.apiUrl}/accounts?search=${encodeURIComponent(query)}&size=${size}&isSmartContract=true`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
     throw new Error(`API error: ${response.status} ${response.statusText}`);

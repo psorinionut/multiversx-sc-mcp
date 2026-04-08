@@ -122,6 +122,10 @@ export async function formatAmount(params: {
 }): Promise<{ input: string; decimals: number; operation: string; result: string; description: string }> {
   const { value, decimals, operation } = params;
 
+  if (value.startsWith("-")) {
+    throw new Error("Negative amounts are not supported.");
+  }
+
   if (decimals < 0 || !Number.isInteger(decimals)) {
     throw new Error("Decimals must be a non-negative integer.");
   }
