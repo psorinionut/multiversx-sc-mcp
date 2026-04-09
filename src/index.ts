@@ -32,6 +32,15 @@ import {
   compareCodehash,
   reproducibleBuild,
 } from "./tools/sc-meta.js";
+import {
+  issueFungibleToken,
+  issueNftCollection,
+  issueSftCollection,
+  issueMetaEsdt,
+  createNft,
+} from "./tools/token-management.js";
+import { batchTransferEgld, batchTransferTokens } from "./tools/batch-transfer.js";
+import { createRelayedTransaction } from "./tools/relayed.js";
 import { registerPrompts } from "./prompts/index.js";
 
 /** JSON.stringify replacer that converts BigInt to string */
@@ -939,6 +948,235 @@ server.tool(
   async ({ mode }) => {
     try {
       const result = await getSetupConfig({ mode });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_token_issue_fungible ──────────────────────────────────────────
+server.tool(
+  "mvx_token_issue_fungible",
+  "Issue a new fungible ESDT token on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — token identifier available in transaction results after processing.",
+  {
+    tokenName: z.string().describe("Token name (3-20 alphanumeric characters)"),
+    tokenTicker: z.string().describe("Token ticker (3-10 uppercase characters)"),
+    initialSupply: z.string().describe("Initial supply in atomic units"),
+    numDecimals: z.number().describe("Number of decimals (0-18)"),
+    canFreeze: z.boolean().optional().describe("Allow freezing accounts (default: false)"),
+    canWipe: z.boolean().optional().describe("Allow wiping frozen accounts (default: false)"),
+    canPause: z.boolean().optional().describe("Allow pausing all transfers (default: false)"),
+    canChangeOwner: z.boolean().optional().describe("Allow changing token owner (default: false)"),
+    canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
+    canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ tokenName, tokenTicker, initialSupply, numDecimals, canFreeze, canWipe, canPause, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+    try {
+      const result = await issueFungibleToken({
+        tokenName, tokenTicker, initialSupply, numDecimals,
+        canFreeze, canWipe, canPause, canChangeOwner, canUpgrade, canAddSpecialRoles,
+        walletPem, network,
+      });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_token_issue_nft ──────────────────────────────────────────────
+server.tool(
+  "mvx_token_issue_nft",
+  "Issue a new NFT collection on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — collection identifier available in transaction results.",
+  {
+    tokenName: z.string().describe("Collection name (3-20 alphanumeric characters)"),
+    tokenTicker: z.string().describe("Collection ticker (3-10 uppercase characters)"),
+    canFreeze: z.boolean().optional().describe("Allow freezing accounts (default: false)"),
+    canWipe: z.boolean().optional().describe("Allow wiping frozen accounts (default: false)"),
+    canPause: z.boolean().optional().describe("Allow pausing all transfers (default: false)"),
+    canTransferNFTCreateRole: z.boolean().optional().describe("Allow transferring NFT create role (default: false)"),
+    canChangeOwner: z.boolean().optional().describe("Allow changing token owner (default: false)"),
+    canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
+    canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+    try {
+      const result = await issueNftCollection({
+        tokenName, tokenTicker,
+        canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles,
+        walletPem, network,
+      });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_token_issue_sft ──────────────────────────────────────────────
+server.tool(
+  "mvx_token_issue_sft",
+  "Issue a new SFT (Semi-Fungible Token) collection on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — collection identifier available in transaction results.",
+  {
+    tokenName: z.string().describe("Collection name (3-20 alphanumeric characters)"),
+    tokenTicker: z.string().describe("Collection ticker (3-10 uppercase characters)"),
+    canFreeze: z.boolean().optional().describe("Allow freezing accounts (default: false)"),
+    canWipe: z.boolean().optional().describe("Allow wiping frozen accounts (default: false)"),
+    canPause: z.boolean().optional().describe("Allow pausing all transfers (default: false)"),
+    canTransferNFTCreateRole: z.boolean().optional().describe("Allow transferring NFT create role (default: false)"),
+    canChangeOwner: z.boolean().optional().describe("Allow changing token owner (default: false)"),
+    canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
+    canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+    try {
+      const result = await issueSftCollection({
+        tokenName, tokenTicker,
+        canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles,
+        walletPem, network,
+      });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_token_issue_meta_esdt ────────────────────────────────────────
+server.tool(
+  "mvx_token_issue_meta_esdt",
+  "Issue a new Meta-ESDT token on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — token identifier available in transaction results.",
+  {
+    tokenName: z.string().describe("Token name (3-20 alphanumeric characters)"),
+    tokenTicker: z.string().describe("Token ticker (3-10 uppercase characters)"),
+    numDecimals: z.number().describe("Number of decimals (0-18)"),
+    canFreeze: z.boolean().optional().describe("Allow freezing accounts (default: false)"),
+    canWipe: z.boolean().optional().describe("Allow wiping frozen accounts (default: false)"),
+    canPause: z.boolean().optional().describe("Allow pausing all transfers (default: false)"),
+    canTransferNFTCreateRole: z.boolean().optional().describe("Allow transferring NFT create role (default: false)"),
+    canChangeOwner: z.boolean().optional().describe("Allow changing token owner (default: false)"),
+    canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
+    canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ tokenName, tokenTicker, numDecimals, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+    try {
+      const result = await issueMetaEsdt({
+        tokenName, tokenTicker, numDecimals,
+        canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles,
+        walletPem, network,
+      });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_token_create_nft ─────────────────────────────────────────────
+server.tool(
+  "mvx_token_create_nft",
+  "Create (mint) an NFT/SFT in an existing collection. REQUIRES a wallet (PEM) with ESDTRoleNFTCreate. Returns txHash — NFT nonce available in transaction results.",
+  {
+    tokenIdentifier: z.string().describe("Collection identifier (e.g., NFT-abc123)"),
+    name: z.string().describe("NFT name"),
+    initialQuantity: z.number().optional().describe("Initial quantity (1 for NFT, variable for SFT, default: 1)"),
+    royalties: z.number().optional().describe("Royalties (0-10000, where 10000 = 100%, default: 0)"),
+    hash: z.string().optional().describe("Content hash (default: empty)"),
+    attributes: z.string().optional().describe("Attributes as string (default: empty)"),
+    uris: z.array(z.string()).optional().describe("Array of URIs (media, metadata, etc.)"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ tokenIdentifier, name, initialQuantity, royalties, hash, attributes, uris, walletPem, network }) => {
+    try {
+      const result = await createNft({
+        tokenIdentifier, name, initialQuantity, royalties, hash, attributes, uris,
+        walletPem, network,
+      });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_batch_transfer_egld ──────────────────────────────────────────
+server.tool(
+  "mvx_batch_transfer_egld",
+  "Send EGLD to multiple recipients in batch. Creates one transaction per recipient, signed and sent sequentially. REQUIRES a wallet (PEM).",
+  {
+    recipients: z.array(
+      z.object({
+        address: z.string().describe("Receiver address (erd1...)"),
+        amount: z.string().describe("EGLD amount in atomic units (1 EGLD = 1000000000000000000)"),
+      })
+    ).describe("Array of recipients with address and amount"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ recipients, walletPem, network }) => {
+    try {
+      const result = await batchTransferEgld({ recipients, walletPem, network });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_batch_transfer_tokens ────────────────────────────────────────
+server.tool(
+  "mvx_batch_transfer_tokens",
+  "Send ESDT/NFT/SFT tokens to multiple recipients in batch. Creates one transaction per recipient, signed and sent sequentially. REQUIRES a wallet (PEM).",
+  {
+    tokenIdentifier: z.string().describe("Token identifier (e.g., USDC-c76f1f, NFT-abc123)"),
+    recipients: z.array(
+      z.object({
+        address: z.string().describe("Receiver address (erd1...)"),
+        amount: z.string().describe("Amount in atomic units"),
+        nonce: z.number().optional().describe("Token nonce (0 for fungible, specific nonce for NFT/SFT)"),
+      })
+    ).describe("Array of recipients with address, amount, and optional nonce"),
+    walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ tokenIdentifier, recipients, walletPem, network }) => {
+    try {
+      const result = await batchTransferTokens({ tokenIdentifier, recipients, walletPem, network });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_relayed_transaction ──────────────────────────────────────────
+server.tool(
+  "mvx_relayed_transaction",
+  "Create and send a Relayed V3 transaction where the relayer pays the gas. Requires both sender and relayer PEM wallets. The sender signs the inner transaction, the relayer co-signs and pays gas fees.",
+  {
+    senderPem: z.string().describe("Path to sender's PEM wallet file (the user initiating the action)"),
+    relayerPem: z.string().describe("Path to relayer's PEM wallet file (who pays the gas)"),
+    receiver: z.string().describe("Receiver address (erd1...)"),
+    value: z.string().optional().describe("EGLD value in atomic units (default: 0)"),
+    data: z.string().optional().describe("Transaction data/payload as string (default: empty)"),
+    gasLimit: z.number().optional().describe("Gas limit (default: 50000000)"),
+    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+  },
+  async ({ senderPem, relayerPem, receiver, value, data, gasLimit, network }) => {
+    try {
+      const result = await createRelayedTransaction({
+        senderPem, relayerPem, receiver, value, data, gasLimit, network,
+      });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
