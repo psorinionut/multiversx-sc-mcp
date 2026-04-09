@@ -2,7 +2,7 @@
 
 MCP server for MultiversX smart contract development — deploy, upgrade, verify, query, simulate, and test contracts directly from AI agents.
 
-**33 tools** + **8 AI workflows** for full blockchain and smart contract interaction.
+**41 tools** + **8 AI workflows** for full blockchain and smart contract interaction.
 
 ## Features
 
@@ -52,6 +52,29 @@ MCP server for MultiversX smart contract development — deploy, upgrade, verify
 | `mvx_native_auth_generate` | Generate a native auth token | Yes |
 | `mvx_wallet_new` | Create a new wallet (PEM or JSON) | No |
 | `mvx_wallet_info` | Get address from a PEM file | No |
+
+### Token Management (`mvx_token_*`)
+
+| Tool | Description | Wallet |
+|------|-------------|:------:|
+| `mvx_token_issue_fungible` | Issue a new fungible ESDT token | Yes |
+| `mvx_token_issue_nft` | Issue (register) a new NFT collection | Yes |
+| `mvx_token_issue_sft` | Issue (register) a new SFT collection | Yes |
+| `mvx_token_issue_meta_esdt` | Issue (register) a new Meta-ESDT collection | Yes |
+| `mvx_token_create_nft` | Create a new NFT/SFT/Meta-ESDT nonce under a collection | Yes |
+
+### Batch Transfers
+
+| Tool | Description | Wallet |
+|------|-------------|:------:|
+| `mvx_batch_transfer_egld` | Send EGLD to multiple recipients in one transaction | Yes |
+| `mvx_batch_transfer_tokens` | Send ESDT tokens to multiple recipients in one transaction | Yes |
+
+### Relayed Transactions
+
+| Tool | Description | Wallet |
+|------|-------------|:------:|
+| `mvx_relayed_transaction` | Send a relayed v3 transaction (pay gas on behalf of another account) | Yes |
 
 ### Setup
 
@@ -203,6 +226,39 @@ After installing, the agent will offer to configure permissions. Choose:
 → mvx_sc_simulate(address, "addLiquidity", args, gasLimit)
 ```
 
+### Issue a fungible token
+```
+"Issue a new fungible token called MyToken with ticker MTK, 18 decimals, 1M supply"
+→ mvx_token_issue_fungible(name: "MyToken", ticker: "MTK", initialSupply: "1000000", decimals: 18, network: "devnet")
+```
+
+### Issue an NFT collection and create an NFT
+```
+"Create an NFT collection called MyArt with ticker MART"
+→ mvx_token_issue_nft(name: "MyArt", ticker: "MART", network: "devnet")
+
+"Mint NFT #1 in collection MART-ab1234"
+→ mvx_token_create_nft(collection: "MART-ab1234", name: "Art Piece #1", royalties: 500, ...)
+```
+
+### Batch transfer EGLD
+```
+"Send 0.1 EGLD to 5 addresses"
+→ mvx_batch_transfer_egld(recipients: [{address: "erd1...", amount: "0.1"}, ...], network: "devnet")
+```
+
+### Batch transfer tokens
+```
+"Send MEX to 3 addresses"
+→ mvx_batch_transfer_tokens(token: "MEX-455c57", recipients: [{address: "erd1...", amount: "100"}, ...])
+```
+
+### Relayed transaction
+```
+"Send a relayed transaction paying gas for another user"
+→ mvx_relayed_transaction(innerSender: "erd1...", receiver: "erd1qqq...", data: "claimRewards", network: "devnet")
+```
+
 ### Audit a deployed contract
 ```
 "Audit the contract at erd1qqq..."
@@ -222,7 +278,7 @@ ABIs are cached in memory for the session duration.
 
 ```
 src/
-├── index.ts                # MCP server — 33 tools + 8 prompts
+├── index.ts                # MCP server — 41 tools + 8 prompts
 ├── core/
 │   ├── provider.ts         # Network provider factory
 │   └── abi-loader.ts       # ABI fetch (API auto-discovery + local + cache)
@@ -247,6 +303,9 @@ src/
 │   ├── native-auth.ts      # mvx_native_auth_decode, mvx_native_auth_generate
 │   ├── wallet.ts           # mvx_wallet_new, mvx_wallet_info
 │   ├── sc-meta.ts          # mvx_sc_build, mvx_sc_test, mvx_sc_new, mvx_sc_proxy, mvx_sc_compare, mvx_sc_reproducible_build
+│   ├── token-management.ts # mvx_token_issue_fungible, mvx_token_issue_nft, mvx_token_issue_sft, mvx_token_issue_meta_esdt, mvx_token_create_nft
+│   ├── batch-transfer.ts   # mvx_batch_transfer_egld, mvx_batch_transfer_tokens
+│   ├── relayed.ts          # mvx_relayed_transaction
 │   └── setup.ts            # mvx_setup
 ├── prompts/
 │   └── index.ts            # 8 AI workflow prompts (load from skills/)

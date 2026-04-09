@@ -6,9 +6,9 @@ MCP server for MultiversX smart contract development.
 
 ```
 src/
-  index.ts              # MCP server — 33 tools + 8 prompts
+  index.ts              # MCP server — 41 tools + 8 prompts
   core/                 # Provider factory, ABI loader
-  tools/                # 33 tool implementations (incl. sc-meta.ts, setup.ts)
+  tools/                # 41 tool implementations (incl. sc-meta.ts, setup.ts, token-management.ts, batch-transfer.ts, relayed.ts)
   prompts/              # Loads skill files, registers MCP prompts
   utils/                # Shared utilities (networks, validation, fetch, serialize, nonce)
 skills/                 # 8 standalone markdown workflow files
@@ -37,7 +37,8 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 
 ## Key Patterns
 
-- **Nonce**: Always fetched from gateway (not API) to avoid stale nonce issues. See `utils/nonce.ts`.
+- **Nonce**: Local cache with 30s TTL. After sending a tx, nonce increments locally. Re-fetches from gateway after 30s or on cache miss. See `utils/nonce.ts`.
+- **Retries**: Gateway nonce fetch retries 2x on 500 errors with exponential backoff.
 - **ABI**: Auto-fetched from API for verified contracts (`/accounts/{addr}/verification`), cached in memory. Local path via `abiPath` param.
 - **Storage keys**: Treated as mapper names by default. Only `0x`-prefixed strings are treated as raw hex.
 - **Timeouts**: All fetch calls use `fetchWithTimeout` (30s default, 120s for verify).
@@ -76,6 +77,6 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node dist/index.js
 
 ## Inventory
 
-**33 tools**: mvx_account, mvx_sc_abi, mvx_sc_query, mvx_sc_storage, mvx_sc_storage_keys, mvx_sc_call, mvx_tx_result, mvx_sc_decode, mvx_search, mvx_transfer, mvx_sc_deploy, mvx_sc_upgrade, mvx_sc_verify, mvx_sc_verify_status, mvx_wallet_new, mvx_wallet_info, mvx_convert, mvx_format_amount, mvx_token_info, mvx_network_config, mvx_sign_message, mvx_verify_sig, mvx_native_auth_decode, mvx_native_auth_generate, mvx_sc_simulate, mvx_sc_estimate_gas, mvx_sc_build, mvx_sc_test, mvx_sc_new, mvx_sc_proxy, mvx_sc_compare, mvx_sc_reproducible_build, mvx_setup
+**41 tools**: mvx_account, mvx_sc_abi, mvx_sc_query, mvx_sc_storage, mvx_sc_storage_keys, mvx_sc_call, mvx_tx_result, mvx_sc_decode, mvx_search, mvx_transfer, mvx_sc_deploy, mvx_sc_upgrade, mvx_sc_verify, mvx_sc_verify_status, mvx_wallet_new, mvx_wallet_info, mvx_convert, mvx_format_amount, mvx_token_info, mvx_network_config, mvx_sign_message, mvx_verify_sig, mvx_native_auth_decode, mvx_native_auth_generate, mvx_sc_simulate, mvx_sc_estimate_gas, mvx_sc_build, mvx_sc_test, mvx_sc_new, mvx_sc_proxy, mvx_sc_compare, mvx_sc_reproducible_build, mvx_setup, mvx_token_issue_fungible, mvx_token_issue_nft, mvx_token_issue_sft, mvx_token_issue_meta_esdt, mvx_token_create_nft, mvx_batch_transfer_egld, mvx_batch_transfer_tokens, mvx_relayed_transaction
 
 **8 prompts**: mvx, mvx_audit_onchain, mvx_audit_source, mvx_test_contract, mvx_deploy_flow, mvx_upgrade_flow, mvx_debug_tx, mvx_token_management

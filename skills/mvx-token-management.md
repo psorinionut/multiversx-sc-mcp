@@ -31,9 +31,20 @@ When auditing or testing a contract that manages tokens:
 3. Confirm the contract address holds the required roles (Mint, Burn, etc.).
 4. Check that token supply matches expected values.
 
-## Token Issuance Guide
+## Token Issuance (Direct Tools)
 
-Issuing a new ESDT token requires a system smart contract call to `erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqslllllls3xelgl`:
+Use the dedicated MCP tools for direct wallet-based issuance:
+- **Fungible**: `mvx_token_issue_fungible` — issue a new fungible ESDT (name, ticker, supply, decimals, properties)
+- **NFT collection**: `mvx_token_issue_nft` — register a new NFT collection (name, ticker, properties)
+- **SFT collection**: `mvx_token_issue_sft` — register a new SFT collection (name, ticker, properties)
+- **Meta-ESDT**: `mvx_token_issue_meta_esdt` — register a new Meta-ESDT collection (name, ticker, decimals, properties)
+- **Create NFT/SFT nonce**: `mvx_token_create_nft` — mint a new nonce under an existing collection (name, royalties, attributes, URIs)
+
+All issuance tools send a transaction to the system SC (`erd1qqqqqqqqqqqqqqqpqqqqqqqqqqqqqqqqqqqqqqqqqqqqqslllllls3xelgl`) with 0.05 EGLD fee. The token identifier is returned in the transaction results.
+
+## Token Issuance (From Smart Contracts)
+
+When issuing from a smart contract (not a wallet), the flow uses async system SC calls:
 - **Function**: `issue` (fungible), `issueNonFungible`, `issueSemiFungible`, or `registerMetaESDT`
 - **Cost**: 0.05 EGLD (issue fee)
 - **Arguments**: token name, ticker, initial supply (fungible), decimals, and optional properties
