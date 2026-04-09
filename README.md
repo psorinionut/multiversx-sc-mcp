@@ -2,7 +2,7 @@
 
 MCP server for MultiversX smart contract development — deploy, upgrade, verify, query, simulate, and test contracts directly from AI agents.
 
-**26 tools** + **8 AI workflows** for full blockchain and smart contract interaction.
+**33 tools** + **8 AI workflows** for full blockchain and smart contract interaction.
 
 ## Features
 
@@ -23,6 +23,17 @@ MCP server for MultiversX smart contract development — deploy, upgrade, verify
 | `mvx_sc_verify` | Submit contract verification to explorer | Yes |
 | `mvx_sc_verify_status` | Check verification task progress | No |
 
+### Development Tools (`mvx_sc_*`)
+
+| Tool | Description | Wallet |
+|------|-------------|:------:|
+| `mvx_sc_build` | Build WASM via sc-meta | No |
+| `mvx_sc_test` | Run cargo test / sc-meta test | No |
+| `mvx_sc_new` | Create new SC from template | No |
+| `mvx_sc_proxy` | Generate typed proxy bindings | No |
+| `mvx_sc_compare` | Compare local WASM with deployed bytecode | No |
+| `mvx_sc_reproducible_build` | Docker-based deterministic build | No |
+
 ### General Blockchain Tools (`mvx_*`)
 
 | Tool | Description | Wallet |
@@ -41,6 +52,12 @@ MCP server for MultiversX smart contract development — deploy, upgrade, verify
 | `mvx_native_auth_generate` | Generate a native auth token | Yes |
 | `mvx_wallet_new` | Create a new wallet (PEM or JSON) | No |
 | `mvx_wallet_info` | Get address from a PEM file | No |
+
+### Setup
+
+| Tool | Description | Wallet |
+|------|-------------|:------:|
+| `mvx_setup` | Configure permissions (auto-approve read-only tools) | No |
 
 ### AI Workflows (MCP Prompts)
 
@@ -108,6 +125,12 @@ npm install -g multiversx-sc-mcp
 claude mcp add multiversx-sc -- multiversx-sc-mcp
 ```
 
+### First-Time Setup
+
+After installing, the agent will offer to configure permissions. Choose:
+- **Safe mode**: Read-only tools auto-approved, write tools need confirmation
+- **Allow all**: All tools auto-approved (for dev/testnet only)
+
 ## Configuration
 
 ### Environment Variables
@@ -152,6 +175,15 @@ claude mcp add multiversx-sc -- multiversx-sc-mcp
 → mvx_convert(value, from: "bech32", to: "hex")
 ```
 
+### Build and test a contract
+```
+"Build the adder contract"
+→ mvx_sc_build(path: "/path/to/adder")
+
+"Run tests"
+→ mvx_sc_test(path: "/path/to/adder")
+```
+
 ### Deploy, verify, and test
 ```
 → mvx_sc_deploy(wasmPath, abiPath, network: "testnet")
@@ -190,7 +222,7 @@ ABIs are cached in memory for the session duration.
 
 ```
 src/
-├── index.ts                # MCP server — 26 tools + 8 prompts
+├── index.ts                # MCP server — 33 tools + 8 prompts
 ├── core/
 │   ├── provider.ts         # Network provider factory
 │   └── abi-loader.ts       # ABI fetch (API auto-discovery + local + cache)
@@ -213,14 +245,17 @@ src/
 │   ├── sign-message.ts     # mvx_sign_message
 │   ├── verify-message.ts   # mvx_verify_sig
 │   ├── native-auth.ts      # mvx_native_auth_decode, mvx_native_auth_generate
-│   └── wallet.ts           # mvx_wallet_new, mvx_wallet_info
+│   ├── wallet.ts           # mvx_wallet_new, mvx_wallet_info
+│   ├── sc-meta.ts          # mvx_sc_build, mvx_sc_test, mvx_sc_new, mvx_sc_proxy, mvx_sc_compare, mvx_sc_reproducible_build
+│   └── setup.ts            # mvx_setup
 ├── prompts/
 │   └── index.ts            # 8 AI workflow prompts (load from skills/)
 ├── utils/
 │   ├── networks.ts         # Network URLs, getChainId, getExplorerUrl
 │   ├── validation.ts       # Address validation
 │   ├── fetch.ts            # fetchWithTimeout wrapper
-│   └── serialize.ts        # Shared value serialization (BigInt, Address, etc.)
+│   ├── serialize.ts        # Shared value serialization (BigInt, Address, etc.)
+│   └── nonce.ts            # Gateway nonce fetching
 └── skills/                  # Standalone markdown workflow files
     ├── mvx-orchestrator.md
     ├── mvx-audit-onchain.md
