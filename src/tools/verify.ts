@@ -2,9 +2,36 @@ import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { createHash } from "crypto";
 import { UserSigner, Message, MessageComputer } from "@multiversx/sdk-core";
-import type { NetworkName } from "../utils/networks.js";
+import { resolveNetwork, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
+
+/**
+ * Probe the explorer's account API for the `isVerified` flag.
+ * The verifier service marks tasks "success" several minutes before the
+ * explorer indexer flips this flag. Returning both lets callers see the lag.
+ */
+async function checkExplorerVerifiedFlag(
+  address: string,
+  network: NetworkName | undefined,
+): Promise<{ isVerified: boolean | null; codeHash?: string }> {
+  try {
+    const apiUrl = resolveNetwork(network).apiUrl;
+    const resp = await fetchWithTimeout(
+      `${apiUrl}/accounts/${address}?fields=isVerified,codeHash`,
+      undefined,
+      15_000,
+    );
+    if (!resp.ok) return { isVerified: null };
+    const data = (await resp.json()) as { isVerified?: boolean; codeHash?: string };
+    return {
+      isVerified: data.isVerified === true ? true : data.isVerified === false ? false : null,
+      codeHash: data.codeHash,
+    };
+  } catch {
+    return { isVerified: null };
+  }
+}
 
 const VERIFIER_URLS: Record<string, string> = {
   mainnet: "https://play-api.multiversx.com",
@@ -144,6 +171,30 @@ export async function checkVerificationStatus(params: {
   const result = data.result as Record<string, unknown> | undefined;
   const explorerPrefix = net === "mainnet" ? "" : `${net}-`;
 
+  // When the verifier reports success, also probe the account API to see if
+  // the explorer's `isVerified` flag has propagated. The two systems are
+  // separate indexers; the flag can lag the verifier by several minutes.
+  let propagation: { explorerIsVerified: boolean | null; codeHash?: string } | undefined;
+  if (status === "finished" && result?.status === "success" && address) {
+    const probe = await checkExplorerVerifiedFlag(address, network);
+    propagation = { explorerIsVerified: probe.isVerified, codeHash: probe.codeHash };
+  }
+
+  let note: string;
+  if (status === "finished" && result?.status === "success") {
+    if (propagation?.explorerIsVerified === true) {
+      note = "Contract verified successfully — source visible on the explorer (isVerified=true confirmed).";
+    } else if (propagation?.explorerIsVerified === false || propagation?.explorerIsVerified === null) {
+      note = "Verifier accepted the build (status=success), but the explorer indexer hasn't flipped isVerified yet. This usually takes 2-15 minutes after task completion. The contract IS verified from the verifier's side; only the UI flag is lagging.";
+    } else {
+      note = "Contract verified successfully! Source code and ABI are now visible on the explorer.";
+    }
+  } else if (status === "finished" && result?.status !== "success") {
+    note = `Verification finished with status: ${result?.status}. Check the explorer.`;
+  } else {
+    note = `Verification still in progress (${status}). Reproducible builds take 3-10 minutes — wait at least 2 minutes between checks. Do not poll rapidly.`;
+  }
+
   return {
     taskId,
     status,
@@ -155,10 +206,7 @@ export async function checkVerificationStatus(params: {
     explorerUrl: address
       ? `https://${explorerPrefix}explorer.multiversx.com/accounts/${address}`
       : null,
-    note: status === "finished" && result?.status === "success"
-      ? "Contract verified successfully! Source code and ABI are now visible on the explorer."
-      : status === "finished" && result?.status !== "success"
-        ? `Verification finished with status: ${result?.status}. Check the explorer.`
-        : `Verification still in progress (${status}). Reproducible builds take 3-10 minutes — wait at least 2 minutes between checks. Do not poll rapidly.`,
+    ...(propagation ? { propagation } : {}),
+    note,
   };
 }

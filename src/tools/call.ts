@@ -14,6 +14,7 @@ import { getApiProvider } from "../core/provider.js";
 import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
 import { getAccountNonce } from "../utils/nonce.js";
+import { waitForTx } from "../utils/wait.js";
 
 const HEX_RE = /^[0-9a-fA-F]*$/;
 
@@ -55,6 +56,7 @@ export async function callContract(params: {
   abiPath?: string;
   walletPem?: string;
   network?: NetworkName;
+  waitForCompletion?: boolean;
 }) {
   const {
     address,
@@ -66,6 +68,7 @@ export async function callContract(params: {
     abiPath,
     walletPem,
     network,
+    waitForCompletion = false,
   } = params;
 
   validateAddress(address);
@@ -144,13 +147,24 @@ export async function callContract(params: {
 
   const txHash = await provider.sendTransaction(tx);
 
-  return {
+  const base = {
     txHash,
     sender: callerAddress.toBech32(),
     receiver: address,
     endpoint,
     gasLimit,
-    status: "sent",
     explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
+
+  if (waitForCompletion) {
+    const w = await waitForTx(txHash, network);
+    return {
+      ...base,
+      status: w.finalStatus,
+      ...(w.errorMessage ? { errorMessage: w.errorMessage } : {}),
+      ...(w.mintedTokens ? { mintedTokens: w.mintedTokens } : {}),
+    };
+  }
+
+  return { ...base, status: "sent" as const };
 }

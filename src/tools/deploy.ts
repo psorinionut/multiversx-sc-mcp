@@ -13,6 +13,7 @@ import { getApiProvider } from "../core/provider.js";
 import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
 import { getAccountNonce } from "../utils/nonce.js";
+import { waitForTx } from "../utils/wait.js";
 
 export async function deployContract(params: {
   wasmPath: string;
@@ -26,6 +27,7 @@ export async function deployContract(params: {
   abiPath?: string;
   walletPem?: string;
   network?: NetworkName;
+  waitForCompletion?: boolean;
 }) {
   const {
     wasmPath,
@@ -39,6 +41,7 @@ export async function deployContract(params: {
     abiPath,
     walletPem,
     network,
+    waitForCompletion = false,
   } = params;
 
   // Validate WASM file exists
@@ -106,15 +109,26 @@ export async function deployContract(params: {
     deployerNonce
   );
 
-  return {
+  const base = {
     txHash,
-    status: "sent",
     deployer: deployerAddress.toBech32(),
     contractAddress: contractAddress.toBech32(),
     gasLimit,
     properties: { upgradeable, readable, payable, payableBySc },
     explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
+
+  if (waitForCompletion) {
+    const w = await waitForTx(txHash, network);
+    return {
+      ...base,
+      status: w.finalStatus,
+      ...(w.errorMessage ? { errorMessage: w.errorMessage } : {}),
+      ...(w.newCodeHash ? { codeHash: w.newCodeHash } : {}),
+    };
+  }
+
+  return { ...base, status: "sent" as const };
 }
 
 export async function upgradeContract(params: {
@@ -130,6 +144,7 @@ export async function upgradeContract(params: {
   abiPath?: string;
   walletPem?: string;
   network?: NetworkName;
+  waitForCompletion?: boolean;
 }) {
   const {
     address,
@@ -144,6 +159,7 @@ export async function upgradeContract(params: {
     abiPath,
     walletPem,
     network,
+    waitForCompletion = false,
   } = params;
 
   validateAddress(address);
@@ -201,12 +217,23 @@ export async function upgradeContract(params: {
 
   const txHash = await provider.sendTransaction(tx);
 
-  return {
+  const base = {
     txHash,
-    status: "sent",
     contractAddress: address,
     gasLimit,
     properties: { upgradeable, readable, payable, payableBySc },
     explorerUrl: getExplorerUrl(network, `/transactions/${txHash}`),
   };
+
+  if (waitForCompletion) {
+    const w = await waitForTx(txHash, network);
+    return {
+      ...base,
+      status: w.finalStatus,
+      ...(w.errorMessage ? { errorMessage: w.errorMessage } : {}),
+      ...(w.newCodeHash ? { codeHash: w.newCodeHash } : {}),
+    };
+  }
+
+  return { ...base, status: "sent" as const };
 }

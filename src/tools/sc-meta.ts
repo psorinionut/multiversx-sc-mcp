@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { readFileSync, existsSync, readdirSync, statSync } from "fs";
+import { readFileSync, existsSync, readdirSync, statSync, rmSync, renameSync } from "fs";
 import { join, basename } from "path";
 import { createHash } from "crypto";
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
@@ -304,11 +304,35 @@ export async function reproducibleBuild(params: {
   dockerImage: string;
   contract?: string;
   noWasmOpt?: boolean;
+  /** Default true. mxpy refuses to run if output-docker is non-empty.
+   *  If "preserve", we rename output-docker → output-docker-<prev-contract> to keep prior artifacts. */
+  cleanOutput?: boolean | "preserve";
 }) {
-  const { path, dockerImage, contract, noWasmOpt } = params;
+  const { path, dockerImage, contract, noWasmOpt, cleanOutput = true } = params;
 
   if (!existsSync(path)) {
     throw new Error(`Directory not found: ${path}`);
+  }
+
+  // Handle the recurring "Output folder must be empty: /output" mxpy failure.
+  const outputDirPre = join(path, "output-docker");
+  let preservedAs: string | undefined;
+  if (cleanOutput && existsSync(outputDirPre)) {
+    const entries = readdirSync(outputDirPre).filter((e) => e !== ".DS_Store");
+    if (entries.length > 0) {
+      if (cleanOutput === "preserve") {
+        // Find a non-conflicting backup name based on what's inside
+        const subdirs = entries.filter((e) => statSync(join(outputDirPre, e)).isDirectory());
+        const tag = subdirs[0] || "prev";
+        let backup = `${outputDirPre}-${tag}`;
+        let n = 2;
+        while (existsSync(backup)) backup = `${outputDirPre}-${tag}-${n++}`;
+        renameSync(outputDirPre, backup);
+        preservedAs = backup;
+      } else {
+        rmSync(outputDirPre, { recursive: true, force: true });
+      }
+    }
   }
 
   const flags: string[] = [
@@ -360,6 +384,7 @@ export async function reproducibleBuild(params: {
     success: true,
     outputDir,
     artifacts,
+    ...(preservedAs ? { preservedPriorArtifactsAs: preservedAs } : {}),
     stdout: stdout.trim(),
   };
 }

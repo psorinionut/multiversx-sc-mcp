@@ -218,6 +218,10 @@ server.tool(
       .enum(["mainnet", "testnet", "devnet"])
       .optional()
       .describe("Network (default: mainnet)"),
+    waitForCompletion: z
+      .boolean()
+      .optional()
+      .describe("Poll until tx finalizes (success/fail) and surface errorMessage + minted tokens. Default: false (returns immediately after sending)."),
   },
   async ({
     address,
@@ -229,6 +233,7 @@ server.tool(
     abiPath,
     walletPem,
     network,
+    waitForCompletion,
   }) => {
     try {
       const result = await callContract({
@@ -241,6 +246,7 @@ server.tool(
         abiPath,
         walletPem,
         network,
+        waitForCompletion,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
@@ -428,8 +434,12 @@ server.tool(
       .enum(["mainnet", "testnet", "devnet"])
       .optional()
       .describe("Network (default: mainnet)"),
+    waitForCompletion: z
+      .boolean()
+      .optional()
+      .describe("Poll until tx finalizes (success/fail) and surface errorMessage + new code hash. Default: false."),
   },
-  async ({ wasmPath, arguments: args, gasLimit, value, upgradeable, readable, payable, payableBySc, abiPath, walletPem, network }) => {
+  async ({ wasmPath, arguments: args, gasLimit, value, upgradeable, readable, payable, payableBySc, abiPath, walletPem, network, waitForCompletion }) => {
     try {
       const result = await deployContract({
         wasmPath,
@@ -443,6 +453,7 @@ server.tool(
         abiPath,
         walletPem,
         network,
+        waitForCompletion,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
@@ -486,8 +497,12 @@ server.tool(
       .enum(["mainnet", "testnet", "devnet"])
       .optional()
       .describe("Network (default: mainnet)"),
+    waitForCompletion: z
+      .boolean()
+      .optional()
+      .describe("Poll until tx finalizes (success/fail) and surface errorMessage + new code hash. Default: false."),
   },
-  async ({ address, wasmPath, arguments: args, gasLimit, value, upgradeable, readable, payable, payableBySc, abiPath, walletPem, network }) => {
+  async ({ address, wasmPath, arguments: args, gasLimit, value, upgradeable, readable, payable, payableBySc, abiPath, walletPem, network, waitForCompletion }) => {
     try {
       const result = await upgradeContract({
         address,
@@ -502,6 +517,7 @@ server.tool(
         abiPath,
         walletPem,
         network,
+        waitForCompletion,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
@@ -932,10 +948,11 @@ server.tool(
     dockerImage: z.string().describe("Docker image tag (e.g., multiversx/sdk-rust-contract-builder:v11.0.0)"),
     contract: z.string().optional().describe("Specific contract name (for multi-contract projects)"),
     noWasmOpt: z.boolean().optional().describe("Skip wasm-opt optimization"),
+    cleanOutput: z.union([z.boolean(), z.literal("preserve")]).optional().describe("How to handle a non-empty output-docker dir before building. true (default): wipe it. 'preserve': rename to output-docker-<prev-contract>. false: leave it (mxpy will then fail)."),
   },
-  async ({ path, dockerImage, contract, noWasmOpt }) => {
+  async ({ path, dockerImage, contract, noWasmOpt, cleanOutput }) => {
     try {
-      const result = await reproducibleBuild({ path, dockerImage, contract, noWasmOpt });
+      const result = await reproducibleBuild({ path, dockerImage, contract, noWasmOpt, cleanOutput });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
