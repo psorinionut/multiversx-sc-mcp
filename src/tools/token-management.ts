@@ -8,11 +8,71 @@ import {
 import { readFile } from "fs/promises";
 import { getApiProvider } from "../core/provider.js";
 import { getAccountNonce } from "../utils/nonce.js";
-import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
+import { resolveNetwork, getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.js";
+import { fetchWithTimeout } from "../utils/fetch.js";
 
 const ISSUE_COST = 50000000000000000n; // 0.05 EGLD
 const ISSUE_GAS_LIMIT = 60000000n;
 const NFT_CREATE_GAS_LIMIT = 10000000n;
+
+const WAIT_TIMEOUT_MS = 120_000;
+const WAIT_POLL_MS = 3_000;
+
+type TxEvent = { identifier?: string; topics?: string[] };
+
+async function fetchTxEvents(txHash: string, network?: NetworkName): Promise<TxEvent[] | null> {
+  const url = `${resolveNetwork(network).apiUrl}/transactions/${txHash}?withResults=true`;
+  try {
+    const resp = await fetchWithTimeout(url);
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as Record<string, unknown>;
+    const status = data.status as string | undefined;
+    if (status !== "success" && status !== "fail") return null;
+    const ops = (data.operations as TxEvent[] | undefined) ?? [];
+    const logEvents = ((data.logs as { events?: TxEvent[] } | undefined)?.events) ?? [];
+    const scrLogs: TxEvent[] = [];
+    for (const r of (data.results as Array<{ logs?: { events?: TxEvent[] } }> | undefined) ?? []) {
+      if (r.logs?.events) scrLogs.push(...r.logs.events);
+    }
+    return [...logEvents, ...scrLogs, ...ops];
+  } catch {
+    return null;
+  }
+}
+
+async function waitForTokenIdentifier(
+  txHash: string,
+  network: NetworkName | undefined,
+  eventNames: string[] = ["issue", "issueNonFungible", "issueSemiFungible", "registerMetaESDT"],
+): Promise<{ tokenIdentifier: string | null; status: "success" | "fail" | "timeout" }> {
+  const deadline = Date.now() + WAIT_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const events = await fetchTxEvents(txHash, network);
+    if (events) {
+      // Check if tx failed
+      for (const e of events) {
+        if (e.identifier === "signalError" || e.identifier === "internalVMErrors") {
+          return { tokenIdentifier: null, status: "fail" };
+        }
+      }
+      // Look for issue event
+      for (const e of events) {
+        if (e.identifier && eventNames.includes(e.identifier) && e.topics?.[0]) {
+          try {
+            const id = Buffer.from(e.topics[0], "base64").toString("utf-8");
+            if (id) return { tokenIdentifier: id, status: "success" };
+          } catch {
+            // ignore decode errors, keep polling
+          }
+        }
+      }
+      // Tx finished but no issue event — return success without id
+      return { tokenIdentifier: null, status: "success" };
+    }
+    await new Promise((r) => setTimeout(r, WAIT_POLL_MS));
+  }
+  return { tokenIdentifier: null, status: "timeout" };
+}
 
 async function loadSigner(walletPem?: string): Promise<UserSigner> {
   const pemPath = walletPem || process.env.MULTIVERSX_WALLET_PEM;
@@ -74,6 +134,7 @@ export async function issueFungibleToken(params: {
   canAddSpecialRoles?: boolean;
   walletPem?: string;
   network?: NetworkName;
+  waitForResult?: boolean;
 }) {
   const {
     tokenName,
@@ -88,6 +149,7 @@ export async function issueFungibleToken(params: {
     canAddSpecialRoles = true,
     walletPem,
     network,
+    waitForResult = false,
   } = params;
 
   const signer = await loadSigner(walletPem);
@@ -112,12 +174,30 @@ export async function issueFungibleToken(params: {
 
   const result = await signAndSend(tx, signer, network);
 
+  if (waitForResult) {
+    const waitRes = await waitForTokenIdentifier(result.txHash, network, ["issue"]);
+    return {
+      ...result,
+      status: waitRes.status,
+      tokenName,
+      tokenTicker,
+      tokenIdentifier: waitRes.tokenIdentifier,
+      note: waitRes.tokenIdentifier
+        ? `Token issued: ${waitRes.tokenIdentifier}`
+        : waitRes.status === "fail"
+          ? "Token issuance failed on-chain. Check explorerUrl."
+          : waitRes.status === "timeout"
+            ? "Timed out waiting for token issuance. Use mvx_tx_result to check manually."
+            : "Tx completed but no issue event found.",
+    };
+  }
+
   return {
     ...result,
     status: "sent",
     tokenName,
     tokenTicker,
-    note: "Token identifier will be available in transaction results after processing.",
+    note: "Token identifier will be available in transaction results after processing. Pass waitForResult:true to auto-resolve.",
   };
 }
 
@@ -135,6 +215,7 @@ export async function issueNftCollection(params: {
   canAddSpecialRoles?: boolean;
   walletPem?: string;
   network?: NetworkName;
+  waitForResult?: boolean;
 }) {
   const {
     tokenName,
@@ -148,6 +229,7 @@ export async function issueNftCollection(params: {
     canAddSpecialRoles = true,
     walletPem,
     network,
+    waitForResult = false,
   } = params;
 
   const signer = await loadSigner(walletPem);
@@ -171,12 +253,28 @@ export async function issueNftCollection(params: {
 
   const result = await signAndSend(tx, signer, network);
 
+  if (waitForResult) {
+    const waitRes = await waitForTokenIdentifier(result.txHash, network, ["issueNonFungible"]);
+    return {
+      ...result,
+      status: waitRes.status,
+      tokenName,
+      tokenTicker,
+      collectionIdentifier: waitRes.tokenIdentifier,
+      note: waitRes.tokenIdentifier
+        ? `NFT collection issued: ${waitRes.tokenIdentifier}`
+        : waitRes.status === "fail"
+          ? "Issuance failed on-chain. Check explorerUrl."
+          : "Tx completed but no issue event found.",
+    };
+  }
+
   return {
     ...result,
     status: "sent",
     tokenName,
     tokenTicker,
-    note: "Collection identifier will be available in transaction results after processing.",
+    note: "Collection identifier will be available in transaction results after processing. Pass waitForResult:true to auto-resolve.",
   };
 }
 
@@ -194,6 +292,7 @@ export async function issueSftCollection(params: {
   canAddSpecialRoles?: boolean;
   walletPem?: string;
   network?: NetworkName;
+  waitForResult?: boolean;
 }) {
   const {
     tokenName,
@@ -207,6 +306,7 @@ export async function issueSftCollection(params: {
     canAddSpecialRoles = true,
     walletPem,
     network,
+    waitForResult = false,
   } = params;
 
   const signer = await loadSigner(walletPem);
@@ -230,12 +330,26 @@ export async function issueSftCollection(params: {
 
   const result = await signAndSend(tx, signer, network);
 
+  if (waitForResult) {
+    const waitRes = await waitForTokenIdentifier(result.txHash, network, ["issueSemiFungible"]);
+    return {
+      ...result,
+      status: waitRes.status,
+      tokenName,
+      tokenTicker,
+      collectionIdentifier: waitRes.tokenIdentifier,
+      note: waitRes.tokenIdentifier
+        ? `SFT collection issued: ${waitRes.tokenIdentifier}`
+        : "Check explorerUrl for details.",
+    };
+  }
+
   return {
     ...result,
     status: "sent",
     tokenName,
     tokenTicker,
-    note: "SFT collection identifier will be available in transaction results after processing.",
+    note: "SFT collection identifier will be available in transaction results after processing. Pass waitForResult:true to auto-resolve.",
   };
 }
 
@@ -254,6 +368,7 @@ export async function issueMetaEsdt(params: {
   canAddSpecialRoles?: boolean;
   walletPem?: string;
   network?: NetworkName;
+  waitForResult?: boolean;
 }) {
   const {
     tokenName,
@@ -268,6 +383,7 @@ export async function issueMetaEsdt(params: {
     canAddSpecialRoles = true,
     walletPem,
     network,
+    waitForResult = false,
   } = params;
 
   const signer = await loadSigner(walletPem);
@@ -292,12 +408,26 @@ export async function issueMetaEsdt(params: {
 
   const result = await signAndSend(tx, signer, network);
 
+  if (waitForResult) {
+    const waitRes = await waitForTokenIdentifier(result.txHash, network, ["registerMetaESDT"]);
+    return {
+      ...result,
+      status: waitRes.status,
+      tokenName,
+      tokenTicker,
+      tokenIdentifier: waitRes.tokenIdentifier,
+      note: waitRes.tokenIdentifier
+        ? `Meta-ESDT registered: ${waitRes.tokenIdentifier}`
+        : "Check explorerUrl for details.",
+    };
+  }
+
   return {
     ...result,
     status: "sent",
     tokenName,
     tokenTicker,
-    note: "Meta-ESDT identifier will be available in transaction results after processing.",
+    note: "Meta-ESDT identifier will be available in transaction results after processing. Pass waitForResult:true to auto-resolve.",
   };
 }
 

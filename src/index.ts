@@ -183,14 +183,14 @@ server.tool(
 // ─── mvx_call ───────────────────────────────────────────────────────────
 server.tool(
   "mvx_sc_call",
-  "Send a transaction to a smart contract endpoint. REQUIRES a wallet (PEM). Use with caution — this sends real transactions on-chain.",
+  "Send a transaction to a smart contract endpoint. REQUIRES a wallet (PEM). Use with caution — this sends real transactions on-chain. For Composite<T,U> args in an ABI, pass as nested array (e.g. [300, 50] inside the top-level args). Without abiPath, pre-encode all args as hex strings (raw-data mode) — useful for system SC calls like setSpecialRole.",
   {
     address: z.string().describe("Contract address (erd1...)"),
     endpoint: z.string().describe("Endpoint function name"),
     arguments: z
       .array(z.unknown())
       .optional()
-      .describe("Arguments (native values with ABI, hex without)"),
+      .describe("Arguments. With abiPath: native values. Without abiPath: all args must be hex strings (raw-data mode). For Composite<T,U>: nested array."),
     gasLimit: z
       .number()
       .optional()
@@ -522,6 +522,10 @@ server.tool(
     dockerImage: z
       .string()
       .describe("Docker image tag used for the build (e.g., multiversx/sdk-rust-contract-builder:v11.0.0)"),
+    contractVariant: z
+      .string()
+      .optional()
+      .describe("Contract variant name for multi-output contracts (e.g., 'pair-full' when the project builds pair, pair-full, safe-price-view)"),
     walletPem: z
       .string()
       .optional()
@@ -531,12 +535,13 @@ server.tool(
       .optional()
       .describe("Network (default: mainnet)"),
   },
-  async ({ address, packagedSrc, dockerImage, walletPem, network }) => {
+  async ({ address, packagedSrc, dockerImage, contractVariant, walletPem, network }) => {
     try {
       const result = await verifyContract({
         address,
         packagedSrc,
         dockerImage,
+        contractVariant,
         walletPem,
         network,
       });
@@ -958,7 +963,7 @@ server.tool(
 // ─── mvx_token_issue_fungible ──────────────────────────────────────────
 server.tool(
   "mvx_token_issue_fungible",
-  "Issue a new fungible ESDT token on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — token identifier available in transaction results after processing.",
+  "Issue a new fungible ESDT token on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — token identifier available in transaction results after processing. Pass waitForResult:true to auto-resolve the token identifier (polls up to 2min).",
   {
     tokenName: z.string().describe("Token name (3-20 alphanumeric characters)"),
     tokenTicker: z.string().describe("Token ticker (3-10 uppercase characters)"),
@@ -972,13 +977,14 @@ server.tool(
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the token identifier (default: false). Polls up to 2 minutes."),
   },
-  async ({ tokenName, tokenTicker, initialSupply, numDecimals, canFreeze, canWipe, canPause, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+  async ({ tokenName, tokenTicker, initialSupply, numDecimals, canFreeze, canWipe, canPause, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
     try {
       const result = await issueFungibleToken({
         tokenName, tokenTicker, initialSupply, numDecimals,
         canFreeze, canWipe, canPause, canChangeOwner, canUpgrade, canAddSpecialRoles,
-        walletPem, network,
+        walletPem, network, waitForResult,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
@@ -990,7 +996,7 @@ server.tool(
 // ─── mvx_token_issue_nft ──────────────────────────────────────────────
 server.tool(
   "mvx_token_issue_nft",
-  "Issue a new NFT collection on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — collection identifier available in transaction results.",
+  "Issue a new NFT collection on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — collection identifier available in transaction results. Pass waitForResult:true to auto-resolve (polls up to 2min).",
   {
     tokenName: z.string().describe("Collection name (3-20 alphanumeric characters)"),
     tokenTicker: z.string().describe("Collection ticker (3-10 uppercase characters)"),
@@ -1003,13 +1009,14 @@ server.tool(
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the collection identifier (default: false)."),
   },
-  async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+  async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
     try {
       const result = await issueNftCollection({
         tokenName, tokenTicker,
         canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles,
-        walletPem, network,
+        walletPem, network, waitForResult,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
@@ -1021,7 +1028,7 @@ server.tool(
 // ─── mvx_token_issue_sft ──────────────────────────────────────────────
 server.tool(
   "mvx_token_issue_sft",
-  "Issue a new SFT (Semi-Fungible Token) collection on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — collection identifier available in transaction results.",
+  "Issue a new SFT (Semi-Fungible Token) collection on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — collection identifier available in transaction results. Pass waitForResult:true to auto-resolve.",
   {
     tokenName: z.string().describe("Collection name (3-20 alphanumeric characters)"),
     tokenTicker: z.string().describe("Collection ticker (3-10 uppercase characters)"),
@@ -1034,13 +1041,14 @@ server.tool(
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the collection identifier (default: false)."),
   },
-  async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+  async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
     try {
       const result = await issueSftCollection({
         tokenName, tokenTicker,
         canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles,
-        walletPem, network,
+        walletPem, network, waitForResult,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
@@ -1052,7 +1060,7 @@ server.tool(
 // ─── mvx_token_issue_meta_esdt ────────────────────────────────────────
 server.tool(
   "mvx_token_issue_meta_esdt",
-  "Issue a new Meta-ESDT token on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — token identifier available in transaction results.",
+  "Issue a new Meta-ESDT token on MultiversX. Costs 0.05 EGLD. REQUIRES a wallet (PEM). Returns txHash — token identifier available in transaction results. Pass waitForResult:true to auto-resolve.",
   {
     tokenName: z.string().describe("Token name (3-20 alphanumeric characters)"),
     tokenTicker: z.string().describe("Token ticker (3-10 uppercase characters)"),
@@ -1066,13 +1074,14 @@ server.tool(
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the token identifier (default: false)."),
   },
-  async ({ tokenName, tokenTicker, numDecimals, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network }) => {
+  async ({ tokenName, tokenTicker, numDecimals, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
     try {
       const result = await issueMetaEsdt({
         tokenName, tokenTicker, numDecimals,
         canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles,
-        walletPem, network,
+        walletPem, network, waitForResult,
       });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {

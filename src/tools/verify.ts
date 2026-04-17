@@ -116,7 +116,7 @@ export async function verifyContract(params: {
     network: net,
     explorerUrl: `https://${explorerPrefix}explorer.multiversx.com/accounts/${address}`,
     note: taskId
-      ? `Verification queued. Use mvx_verify_status with taskId "${taskId}" to check progress.`
+      ? `Verification queued. The verifier runs a reproducible Docker build on its servers, which takes 3-10 minutes. Wait at least 2-3 minutes before calling mvx_sc_verify_status with taskId "${taskId}".`
       : status === "finished"
         ? "Verification completed immediately."
         : "Verification submitted.",
@@ -159,6 +159,6 @@ export async function checkVerificationStatus(params: {
       ? "Contract verified successfully! Source code and ABI are now visible on the explorer."
       : status === "finished" && result?.status !== "success"
         ? `Verification finished with status: ${result?.status}. Check the explorer.`
-        : `Verification still in progress (${status}). Check again in a minute.`,
+        : `Verification still in progress (${status}). Reproducible builds take 3-10 minutes — wait at least 2 minutes between checks. Do not poll rapidly.`,
   };
 }

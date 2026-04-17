@@ -15,6 +15,16 @@ import { getChainId, getExplorerUrl, type NetworkName } from "../utils/networks.
 import { validateAddress } from "../utils/validation.js";
 import { getAccountNonce } from "../utils/nonce.js";
 
+const HEX_RE = /^[0-9a-fA-F]*$/;
+
+function isHexString(s: unknown): s is string {
+  return typeof s === "string" && s.length > 0 && s.length % 2 === 0 && HEX_RE.test(s);
+}
+
+function allArgsHex(args: unknown[]): boolean {
+  return args.length === 0 || args.every(isHexString);
+}
+
 export async function callContract(params: {
   address: string;
   endpoint: string;
@@ -40,7 +50,6 @@ export async function callContract(params: {
 
   validateAddress(address);
 
-  // Resolve wallet
   const pemPath = walletPem || process.env.MULTIVERSX_WALLET_PEM;
   if (!pemPath) {
     throw new Error(
@@ -56,15 +65,11 @@ export async function callContract(params: {
     throw new Error(`Failed to load wallet from "${pemPath}": ${(err as Error).message}`);
   }
   const callerAddress = signer.getAddress();
-
   const provider = getApiProvider(network);
-
   const contractAddress = Address.newFromBech32(address);
 
-  // Load ABI if available
   const abi = await loadAbi({ address, abiPath, network });
 
-  // Build token transfers
   const tokenTransfers = esdtTransfers.map((t) =>
     new TokenTransfer({
       token: new Token({ identifier: t.token, nonce: BigInt(t.nonce || 0) }),
@@ -72,30 +77,50 @@ export async function callContract(params: {
     })
   );
 
-  // Build transaction
-  const factory = new SmartContractTransactionsFactory({
-    config: new TransactionsFactoryConfig({ chainID: getChainId(network) }),
-    abi: abi || undefined,
-  });
+  let tx: Transaction;
 
-  const tx = await factory.createTransactionForExecute(callerAddress, {
-    contract: contractAddress,
-    gasLimit: BigInt(gasLimit),
-    function: endpoint,
-    arguments: args,
-    nativeTransferAmount: BigInt(value),
-    tokenTransfers: tokenTransfers.length > 0 ? tokenTransfers : undefined,
-  });
+  // Raw-data mode: no ABI available AND all args are hex strings.
+  // Build the data field manually and bypass argument encoding. This covers
+  // calls to system SCs (e.g. setSpecialRole), or any contract when the user
+  // pre-encodes args as hex.
+  if (!abi && args.length > 0 && allArgsHex(args)) {
+    if (tokenTransfers.length > 0) {
+      throw new Error(
+        "Raw-data mode (hex args without ABI) doesn't support esdtTransfers yet. Provide an ABI or use mvx_transfer."
+      );
+    }
+    const dataStr = [endpoint, ...(args as string[])].join("@");
+    tx = new Transaction({
+      sender: callerAddress,
+      receiver: contractAddress,
+      gasLimit: BigInt(gasLimit),
+      chainID: getChainId(network),
+      data: new TextEncoder().encode(dataStr),
+      value: BigInt(value),
+    });
+  } else {
+    const factory = new SmartContractTransactionsFactory({
+      config: new TransactionsFactoryConfig({ chainID: getChainId(network) }),
+      abi: abi || undefined,
+    });
+
+    tx = await factory.createTransactionForExecute(callerAddress, {
+      contract: contractAddress,
+      gasLimit: BigInt(gasLimit),
+      function: endpoint,
+      arguments: args,
+      nativeTransferAmount: BigInt(value),
+      tokenTransfers: tokenTransfers.length > 0 ? tokenTransfers : undefined,
+    });
+  }
 
   tx.nonce = await getAccountNonce(callerAddress.toBech32(), network);
 
-  // Sign
   const computer = new TransactionComputer();
   const serialized = computer.computeBytesForSigning(tx);
   const signature = await signer.sign(serialized);
   tx.signature = signature;
 
-  // Send
   const txHash = await provider.sendTransaction(tx);
 
   return {
