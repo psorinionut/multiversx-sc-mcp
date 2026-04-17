@@ -183,14 +183,14 @@ server.tool(
 // ─── mvx_call ───────────────────────────────────────────────────────────
 server.tool(
   "mvx_sc_call",
-  "Send a transaction to a smart contract endpoint. REQUIRES a wallet (PEM). Use with caution — this sends real transactions on-chain. For Composite<T,U> args in an ABI, pass as nested array (e.g. [300, 50] inside the top-level args). Without abiPath, pre-encode all args as hex strings (raw-data mode) — useful for system SC calls like setSpecialRole.",
+  "Send a transaction to a smart contract endpoint. REQUIRES a wallet (PEM). Use with caution — this sends real transactions on-chain. For Composite<T,U> args in an ABI, pass as nested array (e.g. [300, 50] inside the top-level args). Without abiPath, pre-encode all args as hex strings OR pass bech32 (erd1...) addresses — they auto-convert. Raw-data mode is useful for system SC calls like setSpecialRole.",
   {
     address: z.string().describe("Contract address (erd1...)"),
     endpoint: z.string().describe("Endpoint function name"),
     arguments: z
       .array(z.unknown())
       .optional()
-      .describe("Arguments. With abiPath: native values. Without abiPath: all args must be hex strings (raw-data mode). For Composite<T,U>: nested array."),
+      .describe("Arguments. With abiPath: native values. Without abiPath: hex strings or bech32 addresses (auto-converted). For Composite<T,U>: nested array."),
     gasLimit: z
       .number()
       .optional()

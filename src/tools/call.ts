@@ -21,8 +21,28 @@ function isHexString(s: unknown): s is string {
   return typeof s === "string" && s.length > 0 && s.length % 2 === 0 && HEX_RE.test(s);
 }
 
-function allArgsHex(args: unknown[]): boolean {
-  return args.length === 0 || args.every(isHexString);
+function isBech32Address(s: unknown): s is string {
+  return typeof s === "string" && s.startsWith("erd1") && s.length === 62;
+}
+
+function canEncodeAsRawArg(s: unknown): s is string {
+  return isHexString(s) || isBech32Address(s);
+}
+
+/**
+ * In raw-data mode, encode each arg to hex.
+ * - Already-hex strings pass through.
+ * - Bech32 addresses (erd1...) get converted to their 32-byte hex form.
+ */
+function encodeRawArg(arg: string): string {
+  if (isBech32Address(arg)) {
+    return Address.newFromBech32(arg).toHex();
+  }
+  return arg;
+}
+
+function allArgsRawEncodable(args: unknown[]): boolean {
+  return args.length === 0 || args.every(canEncodeAsRawArg);
 }
 
 export async function callContract(params: {
@@ -79,17 +99,18 @@ export async function callContract(params: {
 
   let tx: Transaction;
 
-  // Raw-data mode: no ABI available AND all args are hex strings.
-  // Build the data field manually and bypass argument encoding. This covers
-  // calls to system SCs (e.g. setSpecialRole), or any contract when the user
-  // pre-encodes args as hex.
-  if (!abi && args.length > 0 && allArgsHex(args)) {
+  // Raw-data mode: no ABI available AND every arg is either a hex string or a
+  // bech32 (erd1...) address. Build the data field manually; bech32 addresses
+  // get auto-converted to their 32-byte hex form. Covers system SC calls
+  // (e.g. setSpecialRole) and any contract when the user pre-encodes args.
+  if (!abi && args.length > 0 && allArgsRawEncodable(args)) {
     if (tokenTransfers.length > 0) {
       throw new Error(
-        "Raw-data mode (hex args without ABI) doesn't support esdtTransfers yet. Provide an ABI or use mvx_transfer."
+        "Raw-data mode doesn't support esdtTransfers yet. Provide an ABI or use mvx_transfer."
       );
     }
-    const dataStr = [endpoint, ...(args as string[])].join("@");
+    const encodedArgs = (args as string[]).map(encodeRawArg);
+    const dataStr = [endpoint, ...encodedArgs].join("@");
     tx = new Transaction({
       sender: callerAddress,
       receiver: contractAddress,
