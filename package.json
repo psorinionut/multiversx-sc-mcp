@@ -1,6 +1,6 @@
 {
   "name": "multiversx-sc-mcp",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "MCP server for MultiversX blockchain and smart contract interaction — 41 tools for querying, deploying, verifying contracts, managing wallets, issuing tokens, batch transfers, and more. ABI-aware with auto-discovery.",
   "main": "dist/index.js",
   "bin": {
