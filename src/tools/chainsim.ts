@@ -1,7 +1,13 @@
+import { execSync } from "child_process";
 import { Address } from "@multiversx/sdk-core";
 import { resolveNetwork, type NetworkName } from "../utils/networks.js";
 import { validateAddress } from "../utils/validation.js";
 import { fetchWithTimeout } from "../utils/fetch.js";
+
+const DEFAULT_CONTAINER = "chainsim";
+const DEFAULT_PORT = 8085;
+const DEFAULT_IMAGE_TAG = "multiversx/chainsimulator:v1.11.3";
+const EXEC_OPTS = { encoding: "utf-8" as const, maxBuffer: 10 * 1024 * 1024 };
 
 /**
  * Helpers for MultiversX chain simulator (localnet only).
@@ -148,4 +154,285 @@ export async function processTx(params: {
     throw new Error(`Simulator rejected generate-until-processed: ${resp.status} ${body}`);
   }
   return { success: true, txHash, maxBlocks, response: body };
+}
+
+// ─── Lifecycle (docker wrappers) ───────────────────────────────────────────
+
+function containerExists(name: string): boolean {
+  try {
+    const out = execSync(`docker ps -a --filter name=^${name}$ --format "{{.Names}}"`, EXEC_OPTS);
+    return out.trim() === name;
+  } catch {
+    return false;
+  }
+}
+
+function containerRunning(name: string): boolean {
+  try {
+    const out = execSync(`docker ps --filter name=^${name}$ --format "{{.Names}}"`, EXEC_OPTS);
+    return out.trim() === name;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Start the chain simulator as a Docker container. Idempotent: if the
+ * container already exists running, returns immediately. If it exists stopped,
+ * starts it. Otherwise runs a fresh container.
+ */
+export async function start(params: {
+  imageTag?: string;
+  containerName?: string;
+  port?: number;
+  waitForReady?: boolean;
+}) {
+  const {
+    imageTag = DEFAULT_IMAGE_TAG,
+    containerName = DEFAULT_CONTAINER,
+    port = DEFAULT_PORT,
+    waitForReady = true,
+  } = params;
+
+  // Sanity-check docker is reachable
+  try {
+    execSync(`docker version --format '{{.Server.Version}}'`, EXEC_OPTS);
+  } catch (err) {
+    throw new Error(
+      `Docker daemon not reachable. Start Docker Desktop (or the daemon) and retry. Details: ${(err as Error).message}`,
+    );
+  }
+
+  let action: "started-new" | "started-existing" | "already-running";
+
+  if (containerRunning(containerName)) {
+    action = "already-running";
+  } else if (containerExists(containerName)) {
+    execSync(`docker start ${containerName}`, EXEC_OPTS);
+    action = "started-existing";
+  } else {
+    execSync(
+      `docker run -d --name ${containerName} -p ${port}:${DEFAULT_PORT} ${imageTag}`,
+      EXEC_OPTS,
+    );
+    action = "started-new";
+  }
+
+  // Optionally poll /network/config until it responds
+  let ready = false;
+  if (waitForReady) {
+    const deadline = Date.now() + 30_000;
+    const url = `http://localhost:${port}/network/config`;
+    while (Date.now() < deadline) {
+      try {
+        const r = await fetchWithTimeout(url, undefined, 2_000);
+        if (r.ok) {
+          ready = true;
+          break;
+        }
+      } catch {
+        // ignore; container is still booting
+      }
+      await new Promise((r) => setTimeout(r, 1_000));
+    }
+  }
+
+  return {
+    success: true,
+    action,
+    containerName,
+    imageTag,
+    port,
+    url: `http://localhost:${port}`,
+    ready,
+  };
+}
+
+export async function stop(params: { containerName?: string; remove?: boolean } = {}) {
+  const { containerName = DEFAULT_CONTAINER, remove = true } = params;
+
+  if (!containerExists(containerName)) {
+    return { success: true, action: "noop", containerName, note: "Container doesn't exist" };
+  }
+
+  if (containerRunning(containerName)) {
+    execSync(`docker stop ${containerName}`, EXEC_OPTS);
+  }
+  if (remove) {
+    execSync(`docker rm ${containerName}`, EXEC_OPTS);
+  }
+
+  return {
+    success: true,
+    action: remove ? "stopped-and-removed" : "stopped",
+    containerName,
+  };
+}
+
+export async function status(params: { containerName?: string; port?: number } = {}) {
+  const { containerName = DEFAULT_CONTAINER, port = DEFAULT_PORT } = params;
+
+  const exists = containerExists(containerName);
+  const running = exists && containerRunning(containerName);
+
+  let httpReachable = false;
+  let networkConfig: unknown = null;
+  if (running) {
+    try {
+      const r = await fetchWithTimeout(
+        `http://localhost:${port}/network/config`,
+        undefined,
+        2_000,
+      );
+      httpReachable = r.ok;
+      if (r.ok) {
+        const body = (await r.json()) as { data?: { config?: unknown } };
+        networkConfig = body.data?.config ?? null;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    containerName,
+    exists,
+    running,
+    httpReachable,
+    port,
+    networkConfig,
+  };
+}
+
+// ─── Initial (pre-funded genesis) wallets ─────────────────────────────────
+
+/**
+ * GET /simulator/initial-wallets. Returns the pre-funded genesis wallets that
+ * ship with the simulator (system owner, validators, plus a list of stake /
+ * initial-wallet addresses). Use these instead of mvx_chainsim_fund when you
+ * just need a funded address.
+ */
+export async function initialWallets(params: { network?: NetworkName } = {}) {
+  const { network } = params;
+  const url = `${baseUrl(network)}/simulator/initial-wallets`;
+  const resp = await fetchWithTimeout(url, undefined, 15_000);
+  const body = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`Simulator rejected initial-wallets: ${resp.status} ${body}`);
+  }
+  try {
+    return JSON.parse(body);
+  } catch {
+    return { raw: body };
+  }
+}
+
+// ─── Storage pre-seeding ──────────────────────────────────────────────────
+
+/**
+ * POST /simulator/set-keys. Write raw storage keys on one or more accounts
+ * without deploying anything. Great for pre-seeding contract state for tests
+ * (pool reserves, farm snapshots, etc).
+ *
+ * Pass either a mapper name (auto hex-encoded) or a raw hex key. Values are
+ * always raw hex.
+ */
+export async function setKeys(params: {
+  address: string;
+  pairs: Array<{ key: string; value: string }>;
+  network?: NetworkName;
+}) {
+  const { address, pairs, network } = params;
+  validateAddress(address);
+  const url = `${baseUrl(network)}/simulator/set-keys`;
+  const bech32 = Address.newFromBech32(address).toBech32();
+
+  const encodedPairs: Record<string, string> = {};
+  for (const p of pairs) {
+    const keyHex = /^[0-9a-fA-F]+$/.test(p.key) && p.key.length % 2 === 0
+      ? p.key
+      : Buffer.from(p.key).toString("hex");
+    const valueHex = p.value.startsWith("0x") ? p.value.slice(2) : p.value;
+    encodedPairs[keyHex] = valueHex;
+  }
+
+  const payload = [{ address: bech32, pairs: encodedPairs }];
+  const resp = await fetchWithTimeout(
+    url,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+    30_000,
+  );
+  const body = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`Simulator rejected set-keys: ${resp.status} ${body}`);
+  }
+  return {
+    success: true,
+    address: bech32,
+    pairsApplied: pairs.length,
+    response: body,
+  };
+}
+
+// ─── Force-epoch transition ───────────────────────────────────────────────
+
+/**
+ * POST /simulator/force-change-of-epoch. Jumps the simulator to the next epoch
+ * without generating every intermediate block. Much faster for epoch-gated
+ * tests (unbonding, weekly reward accrual, safe-price rounds).
+ *
+ * If `targetEpoch` is supplied, calls force-change-of-epoch repeatedly until
+ * the current epoch ≥ targetEpoch (each call advances exactly one epoch).
+ */
+export async function forceEpoch(params: { targetEpoch?: number; network?: NetworkName } = {}) {
+  const { targetEpoch, network } = params;
+  const url = baseUrl(network);
+
+  const currentEpoch = async (): Promise<number> => {
+    const r = await fetchWithTimeout(`${url}/network/status/1`, undefined, 5_000);
+    if (!r.ok) throw new Error(`Failed to read network status: ${r.status}`);
+    const body = (await r.json()) as { data?: { status?: { erd_epoch_number?: number } } };
+    return body.data?.status?.erd_epoch_number ?? 0;
+  };
+
+  const callOnce = async () => {
+    const r = await fetchWithTimeout(
+      `${url}/simulator/force-change-of-epoch`,
+      { method: "POST" },
+      30_000,
+    );
+    const body = await r.text();
+    if (!r.ok) {
+      throw new Error(`Simulator rejected force-change-of-epoch: ${r.status} ${body}`);
+    }
+    return body;
+  };
+
+  const startEpoch = await currentEpoch();
+
+  if (targetEpoch === undefined) {
+    const body = await callOnce();
+    const endEpoch = await currentEpoch();
+    return { success: true, startEpoch, endEpoch, transitions: 1, response: body };
+  }
+
+  let transitions = 0;
+  let epoch = startEpoch;
+  while (epoch < targetEpoch && transitions < 100) {
+    await callOnce();
+    transitions += 1;
+    epoch = await currentEpoch();
+  }
+  return {
+    success: true,
+    startEpoch,
+    endEpoch: epoch,
+    targetEpoch,
+    transitions,
+    reachedTarget: epoch >= targetEpoch,
+  };
 }

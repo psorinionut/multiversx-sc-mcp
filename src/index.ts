@@ -41,7 +41,17 @@ import {
 } from "./tools/token-management.js";
 import { batchTransferEgld, batchTransferTokens } from "./tools/batch-transfer.js";
 import { createRelayedTransaction } from "./tools/relayed.js";
-import { advance as chainsimAdvance, fund as chainsimFund, processTx as chainsimProcessTx } from "./tools/chainsim.js";
+import {
+  advance as chainsimAdvance,
+  fund as chainsimFund,
+  processTx as chainsimProcessTx,
+  start as chainsimStart,
+  stop as chainsimStop,
+  status as chainsimStatus,
+  initialWallets as chainsimInitialWallets,
+  setKeys as chainsimSetKeys,
+  forceEpoch as chainsimForceEpoch,
+} from "./tools/chainsim.js";
 import { registerPrompts } from "./prompts/index.js";
 
 /** JSON.stringify replacer that converts BigInt to string */
@@ -1284,6 +1294,132 @@ server.tool(
   async ({ txHash, maxBlocks, network }) => {
     try {
       const result = await chainsimProcessTx({ txHash, maxBlocks, network: network || "localnet" });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_start ───────────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_start",
+  "Start the MultiversX chain simulator as a Docker container. Idempotent: reuses a running/stopped container with the same name. By default polls /network/config until responsive (up to 30s).",
+  {
+    imageTag: z.string().optional().describe("Docker image tag (default: multiversx/chainsimulator:v1.11.3)"),
+    containerName: z.string().optional().describe("Container name (default: 'chainsim')"),
+    port: z.number().int().positive().optional().describe("Host port to map to simulator port 8085 (default: 8085)"),
+    waitForReady: z.boolean().optional().describe("Poll /network/config after start until responsive (default: true)"),
+  },
+  async ({ imageTag, containerName, port, waitForReady }) => {
+    try {
+      const result = await chainsimStart({ imageTag, containerName, port, waitForReady });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_stop ────────────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_stop",
+  "Stop (and by default remove) the chain simulator Docker container. Idempotent — if container doesn't exist returns action=noop.",
+  {
+    containerName: z.string().optional().describe("Container name (default: 'chainsim')"),
+    remove: z.boolean().optional().describe("Also `docker rm` the container (default: true)"),
+  },
+  async ({ containerName, remove }) => {
+    try {
+      const result = await chainsimStop({ containerName, remove });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_status ──────────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_status",
+  "Check whether the chain simulator container exists/runs and whether its HTTP endpoint responds. Returns network config when reachable.",
+  {
+    containerName: z.string().optional().describe("Container name (default: 'chainsim')"),
+    port: z.number().int().positive().optional().describe("Port to probe (default: 8085)"),
+  },
+  async ({ containerName, port }) => {
+    try {
+      const result = await chainsimStatus({ containerName, port });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_initial_wallets ─────────────────────────────────────
+server.tool(
+  "mvx_chainsim_initial_wallets",
+  "Get the pre-funded genesis wallets that ship with the chain simulator. Each comes with millions of EGLD, ready to transact — no mvx_chainsim_fund call needed. Localnet only.",
+  {
+    network: z
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
+      .optional()
+      .describe("Must be 'localnet' (default)"),
+  },
+  async ({ network }) => {
+    try {
+      const result = await chainsimInitialWallets({ network: network || "localnet" });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_set_keys ────────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_set_keys",
+  "Write raw storage key/value pairs on an account without deploying anything. Pre-seed SC state for tests. Keys: pass a mapper name (auto hex-encoded) or a raw hex key. Values are always raw hex. Localnet only.",
+  {
+    address: z.string().describe("Account to patch (erd1...)"),
+    pairs: z
+      .array(
+        z.object({
+          key: z.string().describe("Mapper name (e.g. 'reserve') or raw hex key"),
+          value: z.string().describe("Raw hex value (with or without 0x prefix)"),
+        }),
+      )
+      .describe("Storage pairs to set"),
+    network: z
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
+      .optional()
+      .describe("Must be 'localnet' (default)"),
+  },
+  async ({ address, pairs, network }) => {
+    try {
+      const result = await chainsimSetKeys({ address, pairs, network: network || "localnet" });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_force_epoch ─────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_force_epoch",
+  "Jump the simulator to the next epoch without generating all the intermediate blocks. Much faster than mvx_chainsim_advance for epoch-gated tests (unbonding, weekly rewards). If targetEpoch is supplied, calls the endpoint repeatedly until current epoch >= target. Localnet only.",
+  {
+    targetEpoch: z.number().int().nonnegative().optional().describe("Call repeatedly until this epoch is reached. Omit for a single transition."),
+    network: z
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
+      .optional()
+      .describe("Must be 'localnet' (default)"),
+  },
+  async ({ targetEpoch, network }) => {
+    try {
+      const result = await chainsimForceEpoch({ targetEpoch, network: network || "localnet" });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
