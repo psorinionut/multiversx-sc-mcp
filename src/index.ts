@@ -41,6 +41,7 @@ import {
 } from "./tools/token-management.js";
 import { batchTransferEgld, batchTransferTokens } from "./tools/batch-transfer.js";
 import { createRelayedTransaction } from "./tools/relayed.js";
+import { advance as chainsimAdvance, fund as chainsimFund, processTx as chainsimProcessTx } from "./tools/chainsim.js";
 import { registerPrompts } from "./prompts/index.js";
 
 /** JSON.stringify replacer that converts BigInt to string */
@@ -679,7 +680,7 @@ server.tool(
   "Get ESDT/NFT token details — name, ticker, decimals, supply, owner, properties, roles, and price if available.",
   {
     identifier: z.string().describe("Token identifier (e.g., WEGLD-bd4d79, USDC-c76f1f, XOXNO-a25cc0)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ identifier, network }) => {
     try {
@@ -696,7 +697,7 @@ server.tool(
   "mvx_network_config",
   "Get MultiversX network configuration — chain ID, gas parameters, current epoch/round, shard count, account/transaction stats.",
   {
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ network }) => {
     try {
@@ -771,7 +772,7 @@ server.tool(
     ttl: z.number().optional().describe("Time to live in seconds (default: 300)"),
     extraInfo: z.record(z.string(), z.unknown()).optional().describe("Extra info to include in the token"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ origin, ttl, extraInfo, walletPem, network }) => {
     try {
@@ -801,7 +802,7 @@ server.tool(
     callerAddress: z.string().optional().describe("Simulated caller address (default: wallet or zero address)"),
     abiPath: z.string().optional().describe("Local path to .abi.json file"),
     walletPem: z.string().optional().describe("Path to PEM wallet (optional for simulation)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ address, endpoint, arguments: args, gasLimit, value, esdtTransfers, callerAddress, abiPath, walletPem, network }) => {
     try {
@@ -830,7 +831,7 @@ server.tool(
       amount: z.string().describe("Amount in atomic units"),
     })).optional().describe("ESDT token transfers"),
     abiPath: z.string().optional().describe("Local path to .abi.json file"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ address, endpoint, arguments: args, value, esdtTransfers, abiPath, network }) => {
     try {
@@ -927,7 +928,7 @@ server.tool(
   {
     wasmPath: z.string().describe("Path to the local .wasm file"),
     address: z.string().describe("Deployed contract address (erd1...)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ wasmPath, address, network }) => {
     try {
@@ -993,7 +994,7 @@ server.tool(
     canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
     waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the token identifier (default: false). Polls up to 2 minutes."),
   },
   async ({ tokenName, tokenTicker, initialSupply, numDecimals, canFreeze, canWipe, canPause, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
@@ -1025,7 +1026,7 @@ server.tool(
     canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
     waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the collection identifier (default: false)."),
   },
   async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
@@ -1057,7 +1058,7 @@ server.tool(
     canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
     waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the collection identifier (default: false)."),
   },
   async ({ tokenName, tokenTicker, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
@@ -1090,7 +1091,7 @@ server.tool(
     canUpgrade: z.boolean().optional().describe("Allow upgrading token properties (default: true)"),
     canAddSpecialRoles: z.boolean().optional().describe("Allow adding special roles (default: true)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
     waitForResult: z.boolean().optional().describe("Wait for tx to finalize and resolve the token identifier (default: false)."),
   },
   async ({ tokenName, tokenTicker, numDecimals, canFreeze, canWipe, canPause, canTransferNFTCreateRole, canChangeOwner, canUpgrade, canAddSpecialRoles, walletPem, network, waitForResult }) => {
@@ -1120,7 +1121,7 @@ server.tool(
     attributes: z.string().optional().describe("Attributes as string (default: empty)"),
     uris: z.array(z.string()).optional().describe("Array of URIs (media, metadata, etc.)"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ tokenIdentifier, name, initialQuantity, royalties, hash, attributes, uris, walletPem, network }) => {
     try {
@@ -1147,7 +1148,7 @@ server.tool(
       })
     ).describe("Array of recipients with address and amount"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ recipients, walletPem, network }) => {
     try {
@@ -1173,7 +1174,7 @@ server.tool(
       })
     ).describe("Array of recipients with address, amount, and optional nonce"),
     walletPem: z.string().optional().describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ tokenIdentifier, recipients, walletPem, network }) => {
     try {
@@ -1196,13 +1197,93 @@ server.tool(
     value: z.string().optional().describe("EGLD value in atomic units (default: 0)"),
     data: z.string().optional().describe("Transaction data/payload as string (default: empty)"),
     gasLimit: z.number().optional().describe("Gas limit (default: 50000000)"),
-    network: z.enum(["mainnet", "testnet", "devnet"]).optional().describe("Network (default: mainnet)"),
+    network: z.enum(["mainnet", "testnet", "devnet", "localnet"]).optional().describe("Network (default: mainnet)"),
   },
   async ({ senderPem, relayerPem, receiver, value, data, gasLimit, network }) => {
     try {
       const result = await createRelayedTransaction({
         senderPem, relayerPem, receiver, value, data, gasLimit, network,
       });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_advance ─────────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_advance",
+  "Advance blocks (or jump to an epoch) on the MultiversX chain simulator (localnet only). The simulator does not auto-mine; use this to drive block production. Exactly one of `blocks` or `untilEpoch` must be supplied.",
+  {
+    blocks: z.number().int().positive().optional().describe("Generate N additional blocks"),
+    untilEpoch: z.number().int().nonnegative().optional().describe("Generate blocks until this epoch is reached"),
+    network: z
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
+      .optional()
+      .describe("Must be 'localnet' (default)"),
+  },
+  async ({ blocks, untilEpoch, network }) => {
+    try {
+      const result = await chainsimAdvance({ blocks, untilEpoch, network: network || "localnet" });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_fund ────────────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_fund",
+  "Credit an address on the chain simulator with EGLD, ESDT balances, and/or set its nonce. Uses /simulator/set-state under the hood. Localnet only.",
+  {
+    address: z.string().describe("Address to credit (erd1...)"),
+    egld: z
+      .string()
+      .optional()
+      .describe("EGLD balance in atomic units (e.g. '100000000000000000000' for 100 EGLD)"),
+    nonce: z.number().int().nonnegative().optional().describe("Nonce to set on the account"),
+    esdts: z
+      .array(
+        z.object({
+          token: z.string().describe("Token identifier (e.g. 'WEGLD-bd4d79')"),
+          amount: z.string().describe("Amount in atomic units"),
+          nonce: z.number().int().nonnegative().optional().describe("Token nonce (0/omitted for fungible)"),
+        }),
+      )
+      .optional()
+      .describe("ESDT balances to credit"),
+    network: z
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
+      .optional()
+      .describe("Must be 'localnet' (default)"),
+  },
+  async ({ address, egld, nonce, esdts, network }) => {
+    try {
+      const result = await chainsimFund({ address, egld, nonce, esdts, network: network || "localnet" });
+      return { content: [{ type: "text", text: safeStringify(result) }] };
+    } catch (err) {
+      return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
+    }
+  }
+);
+
+// ─── mvx_chainsim_process_tx ──────────────────────────────────────────
+server.tool(
+  "mvx_chainsim_process_tx",
+  "Advance blocks on the chain simulator until a specific tx is processed. The simulator doesn't auto-mine, so after sending a tx call this to land it. Localnet only.",
+  {
+    txHash: z.string().describe("Transaction hash to wait for"),
+    maxBlocks: z.number().int().positive().optional().describe("Maximum blocks to generate (default 20)"),
+    network: z
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
+      .optional()
+      .describe("Must be 'localnet' (default)"),
+  },
+  async ({ txHash, maxBlocks, network }) => {
+    try {
+      const result = await chainsimProcessTx({ txHash, maxBlocks, network: network || "localnet" });
       return { content: [{ type: "text", text: safeStringify(result) }] };
     } catch (err) {
       return { content: [{ type: "text", text: `Error: ${(err as Error).message}` }], isError: true };
