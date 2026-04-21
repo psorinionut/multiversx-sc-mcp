@@ -6,7 +6,7 @@ import {
   ArgSerializer,
   Abi,
 } from "@multiversx/sdk-core";
-import type { ApiNetworkProvider } from "@multiversx/sdk-core";
+import type { INetworkProvider } from "@multiversx/sdk-core/out/networkProviders/interface.js";
 import { loadAbi } from "../core/abi-loader.js";
 import { getApiProvider } from "../core/provider.js";
 import type { NetworkName } from "../utils/networks.js";
@@ -37,7 +37,7 @@ export async function queryContract(params: {
 }
 
 async function queryWithAbi(
-  provider: ApiNetworkProvider,
+  provider: INetworkProvider,
   contractAddress: Address,
   endpoint: string,
   args: unknown[],
@@ -83,7 +83,7 @@ async function queryWithAbi(
 }
 
 async function queryRaw(
-  provider: ApiNetworkProvider,
+  provider: INetworkProvider,
   contractAddress: Address,
   endpoint: string,
   args: unknown[]

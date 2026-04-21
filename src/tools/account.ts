@@ -10,13 +10,26 @@ export async function queryAccount(params: {
   validateAddress(address);
   const config = resolveNetwork(network);
 
-  // Fetch full account info directly from API (richer than SDK's getAccount)
-  const response = await fetchWithTimeout(`${config.apiUrl}/accounts/${address}`);
+  // The API flavor (api.multiversx.com/accounts/<addr>) and the Gateway flavor
+  // (gateway.multiversx.com/address/<addr>) return the same info in different
+  // shapes. Mainnet/testnet/devnet default to the API flavor; the chain
+  // simulator (localnet) only serves the Gateway flavor on port 8085.
+  const useGateway = (network || "mainnet") === "localnet";
+
+  const url = useGateway
+    ? `${config.gatewayUrl}/address/${address}`
+    : `${config.apiUrl}/accounts/${address}`;
+
+  const response = await fetchWithTimeout(url);
   if (!response.ok) {
     throw new Error(`Account not found or API error: ${response.status}`);
   }
 
-  const data = (await response.json()) as Record<string, unknown>;
+  const raw = (await response.json()) as Record<string, unknown>;
+  const data = useGateway
+    ? ((raw.data as Record<string, unknown>)?.account as Record<string, unknown>) || {}
+    : raw;
+
   const isSmartContract = !!data.code || !!data.codeHash;
   const assets = (data.assets || {}) as Record<string, unknown>;
 
@@ -40,7 +53,6 @@ export async function queryAccount(params: {
     result.developerReward = data.developerReward;
   }
 
-  // Assets metadata (name, description, website, social)
   if (assets.name) result.name = assets.name;
   if (assets.description) result.description = assets.description;
   if (assets.website) result.website = assets.website;
