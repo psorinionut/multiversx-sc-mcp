@@ -344,7 +344,10 @@ export async function setKeys(params: {
 }) {
   const { address, pairs, network } = params;
   validateAddress(address);
-  const url = `${baseUrl(network)}/simulator/set-keys`;
+  // The simulator exposes /simulator/set-state; a payload with only pairs
+  // is treated as a keys-only patch (balance and nonce on the account stay
+  // intact). There is no dedicated /simulator/set-keys endpoint.
+  const url = `${baseUrl(network)}/simulator/set-state`;
   const bech32 = Address.newFromBech32(address).toBech32();
 
   const encodedPairs: Record<string, string> = {};
@@ -381,12 +384,14 @@ export async function setKeys(params: {
 // ─── Force-epoch transition ───────────────────────────────────────────────
 
 /**
- * POST /simulator/force-change-of-epoch. Jumps the simulator to the next epoch
- * without generating every intermediate block. Much faster for epoch-gated
- * tests (unbonding, weekly reward accrual, safe-price rounds).
+ * Jump the simulator to the next epoch (or to a specific target epoch) as fast
+ * as the simulator allows. Under the hood this calls
+ * /simulator/generate-blocks-until-epoch-reached/{epoch} — the simulator
+ * generates all the intermediate blocks at max speed (no real-time wait). This
+ * is still much faster than calling /generate-blocks/{n} and counting blocks
+ * yourself, and it's the right primitive for epoch-gated tests.
  *
- * If `targetEpoch` is supplied, calls force-change-of-epoch repeatedly until
- * the current epoch ≥ targetEpoch (each call advances exactly one epoch).
+ * If `targetEpoch` is omitted, advances exactly one epoch past the current.
  */
 export async function forceEpoch(params: { targetEpoch?: number; network?: NetworkName } = {}) {
   const { targetEpoch, network } = params;
@@ -399,40 +404,38 @@ export async function forceEpoch(params: { targetEpoch?: number; network?: Netwo
     return body.data?.status?.erd_epoch_number ?? 0;
   };
 
-  const callOnce = async () => {
-    const r = await fetchWithTimeout(
-      `${url}/simulator/force-change-of-epoch`,
-      { method: "POST" },
-      30_000,
-    );
-    const body = await r.text();
-    if (!r.ok) {
-      throw new Error(`Simulator rejected force-change-of-epoch: ${r.status} ${body}`);
-    }
-    return body;
-  };
-
   const startEpoch = await currentEpoch();
+  const actualTarget = targetEpoch ?? startEpoch + 1;
 
-  if (targetEpoch === undefined) {
-    const body = await callOnce();
-    const endEpoch = await currentEpoch();
-    return { success: true, startEpoch, endEpoch, transitions: 1, response: body };
+  if (actualTarget <= startEpoch) {
+    return {
+      success: true,
+      startEpoch,
+      endEpoch: startEpoch,
+      targetEpoch: actualTarget,
+      transitions: 0,
+      reachedTarget: true,
+      note: "Target epoch already reached.",
+    };
   }
 
-  let transitions = 0;
-  let epoch = startEpoch;
-  while (epoch < targetEpoch && transitions < 100) {
-    await callOnce();
-    transitions += 1;
-    epoch = await currentEpoch();
+  const r = await fetchWithTimeout(
+    `${url}/simulator/generate-blocks-until-epoch-reached/${actualTarget}`,
+    { method: "POST" },
+    120_000,
+  );
+  const body = await r.text();
+  if (!r.ok) {
+    throw new Error(`Simulator rejected generate-blocks-until-epoch-reached: ${r.status} ${body}`);
   }
+  const endEpoch = await currentEpoch();
+
   return {
     success: true,
     startEpoch,
-    endEpoch: epoch,
-    targetEpoch,
-    transitions,
-    reachedTarget: epoch >= targetEpoch,
+    endEpoch,
+    targetEpoch: actualTarget,
+    transitions: endEpoch - startEpoch,
+    reachedTarget: endEpoch >= actualTarget,
   };
 }
