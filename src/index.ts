@@ -63,7 +63,7 @@ server.tool(
   {
     address: z.string().describe("MultiversX address (erd1...)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -85,7 +85,7 @@ server.tool(
     address: z.string().optional().describe("Contract address (auto-fetches ABI if verified)"),
     abiPath: z.string().optional().describe("Local path to .abi.json file"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -114,7 +114,7 @@ server.tool(
       ),
     abiPath: z.string().optional().describe("Local path to .abi.json file (auto-fetched if omitted and contract is verified)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -146,7 +146,7 @@ server.tool(
         "Storage key — either a mapper name like 'reserve' (auto hex-encoded) or a raw hex key"
       ),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -167,7 +167,7 @@ server.tool(
   {
     address: z.string().describe("Contract address (erd1...)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -216,7 +216,7 @@ server.tool(
       .optional()
       .describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
     waitForCompletion: z
@@ -268,7 +268,7 @@ server.tool(
       .describe("Contract address for ABI auto-fetch (enables decoded results)"),
     abiPath: z.string().optional().describe("Local path to .abi.json file"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -304,7 +304,7 @@ server.tool(
       .describe("Contract address for ABI auto-fetch"),
     abiPath: z.string().optional().describe("Local path to .abi.json file"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -333,7 +333,7 @@ server.tool(
       .string()
       .describe("Search query — contract name or keyword (e.g., 'xExchange router', 'fees collector')"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
     size: z
@@ -380,7 +380,7 @@ server.tool(
       .optional()
       .describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -432,7 +432,7 @@ server.tool(
       .optional()
       .describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
     waitForCompletion: z
@@ -495,7 +495,7 @@ server.tool(
       .optional()
       .describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
     waitForCompletion: z
@@ -548,7 +548,7 @@ server.tool(
       .optional()
       .describe("Path to PEM wallet file (or set MULTIVERSX_WALLET_PEM env)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
@@ -580,7 +580,7 @@ server.tool(
       .optional()
       .describe("Contract address (for explorer link)"),
     network: z
-      .enum(["mainnet", "testnet", "devnet"])
+      .enum(["mainnet", "testnet", "devnet", "localnet"])
       .optional()
       .describe("Network (default: mainnet)"),
   },
